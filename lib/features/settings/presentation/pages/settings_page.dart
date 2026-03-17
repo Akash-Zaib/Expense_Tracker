@@ -1,0 +1,367 @@
+import 'package:flutter/material.dart';
+import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/app_text_styles.dart';
+
+class SettingsPage extends StatefulWidget {
+  const SettingsPage({super.key});
+
+  @override
+  State<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  bool _notificationsEnabled = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHeader(context),
+          const SizedBox(height: 24),
+          _buildProfileCard(context),
+          const SizedBox(height: 16),
+          _buildSettingsSection(context),
+          const SizedBox(height: 80),
+        ],
+      ),
+    );
+  }
+
+  // ── HEADER (same as home) ────────────────────────────────
+  Widget _buildHeader(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Flexible(
+          child: Row(
+            children: [
+              Stack(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: AppColors.primary,
+                    radius: 20,
+                    child: const Icon(Icons.group, color: Colors.white),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.greenDark,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      padding: const EdgeInsets.all(2),
+                      child: const Text(
+                        '3',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Logic Worms',
+                      style: AppTextStyles.title,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      '3 Partners',
+                      style: AppTextStyles.caption
+                          .copyWith(color: AppColors.primary),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.border),
+          ),
+          child: IconButton(
+            icon: const Icon(Icons.notifications_outlined,
+                color: AppColors.primary),
+            onPressed: () {},
+            constraints: const BoxConstraints(),
+            padding: const EdgeInsets.all(8),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── PROFILE CARD ─────────────────────────────────────────
+  Widget _buildProfileCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Profile',
+            style: AppTextStyles.caption.copyWith(
+              fontWeight: FontWeight.w500,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              // Profile avatar
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.person_outline,
+                  color: Colors.white,
+                  size: 32,
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Name and email
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'You',
+                      style: AppTextStyles.title,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'user@alnoortraders.com',
+                      style: AppTextStyles.caption,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              // Edit button
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.blueLight,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.edit_outlined,
+                  color: AppColors.primary,
+                  size: 18,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── SETTINGS LIST ────────────────────────────────────────
+  Widget _buildSettingsSection(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          _buildSettingsTile(
+            icon: Icons.business_outlined,
+            title: 'Business Name',
+            subtitle: 'Logic worms',
+            onTap: () {},
+          ),
+          _buildDivider(),
+          _buildNotificationsTile(),
+          _buildDivider(),
+          _buildSettingsTile(
+            icon: Icons.language,
+            title: 'Currency',
+            subtitle: 'English',
+            onTap: () {},
+          ),
+          _buildDivider(),
+          _buildSettingsTile(
+            icon: Icons.help_outline,
+            title: 'Help Center',
+            subtitle: 'FAQs and guides',
+            onTap: () {},
+          ),
+          _buildDivider(),
+          _buildSettingsTile(
+            icon: Icons.support_agent_outlined,
+            title: 'Contact Support',
+            subtitle: 'Get help from our team',
+            onTap: () {},
+          ),
+          _buildDivider(),
+          _buildSettingsTile(
+            icon: Icons.description_outlined,
+            title: 'Terms & Conditions',
+            subtitle: null,
+            onTap: () {},
+          ),
+          _buildDivider(),
+          _buildSettingsTile(
+            icon: Icons.privacy_tip_outlined,
+            title: 'Privacy Policy',
+            subtitle: null,
+            onTap: () {},
+          ),
+          _buildDivider(),
+          _buildLogoutTile(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsTile({
+    required IconData icon,
+    required String title,
+    required String? subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Row(
+          children: [
+            Icon(icon, color: AppColors.textSecondary, size: 22),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: AppTextStyles.bodyMedium,
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: AppTextStyles.caption,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right,
+              color: AppColors.textSecondary,
+              size: 22,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotificationsTile() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: Row(
+        children: [
+          const Icon(Icons.notifications_none_outlined,
+              color: AppColors.textSecondary, size: 22),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Notifications',
+                  style: AppTextStyles.bodyMedium,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _notificationsEnabled ? 'Enabled' : 'Disabled',
+                  style: AppTextStyles.caption,
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: _notificationsEnabled,
+            onChanged: (val) => setState(() => _notificationsEnabled = val),
+            activeColor: Colors.white,
+            activeTrackColor: AppColors.primary,
+            inactiveThumbColor: Colors.white,
+            inactiveTrackColor: AppColors.border,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogoutTile() {
+    return InkWell(
+      onTap: () {
+        // TODO: Implement logout
+      },
+      borderRadius: const BorderRadius.vertical(
+        bottom: Radius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Row(
+          children: [
+            const Icon(Icons.logout, color: AppColors.redDark, size: 22),
+            const SizedBox(width: 16),
+            Text(
+              'Logout',
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.redDark,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDivider() {
+    return const Divider(height: 1, indent: 56, endIndent: 20);
+  }
+}

@@ -4,6 +4,153 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../../../../shared/widgets/custom_button.dart';
 import '../../../../shared/widgets/custom_text_field.dart';
 
+/// Bank model with name, short code, icon, and color.
+class BankOption {
+  final String name;
+  final String shortCode;
+  final IconData icon;
+  final Color iconBgColor;
+  final Color iconColor;
+
+  const BankOption({
+    required this.name,
+    required this.shortCode,
+    required this.icon,
+    required this.iconBgColor,
+    required this.iconColor,
+  });
+}
+
+/// All bank options used across the app (shared list).
+final List<BankOption> appBankOptions = [
+  const BankOption(
+    name: 'By Cash',
+    shortCode: 'Cash',
+    icon: Icons.monetization_on,
+    iconBgColor: Color(0xFFE8F5E9),
+    iconColor: Color(0xFF4CAF50),
+  ),
+  const BankOption(
+    name: 'Allied Bank Limited (ABL)',
+    shortCode: 'ABL',
+    icon: Icons.account_balance,
+    iconBgColor: Color(0xFFFFEBEE),
+    iconColor: Color(0xFFC62828),
+  ),
+  const BankOption(
+    name: 'Bank Alfalah',
+    shortCode: 'Alfalah',
+    icon: Icons.account_balance,
+    iconBgColor: Color(0xFFE3F2FD),
+    iconColor: Color(0xFF1565C0),
+  ),
+  const BankOption(
+    name: 'National Bank of Pakistan (NBP)',
+    shortCode: 'NBP',
+    icon: Icons.account_balance,
+    iconBgColor: Color(0xFFE8F5E9),
+    iconColor: Color(0xFF2E7D32),
+  ),
+  const BankOption(
+    name: 'Habib Bank Limited (HBL)',
+    shortCode: 'HBL',
+    icon: Icons.account_balance,
+    iconBgColor: Color(0xFFE8F5E9),
+    iconColor: Color(0xFF388E3C),
+  ),
+  const BankOption(
+    name: 'Meezan Bank',
+    shortCode: 'Meezan',
+    icon: Icons.account_balance,
+    iconBgColor: Color(0xFFF3E5F5),
+    iconColor: Color(0xFF6A1B9A),
+  ),
+  const BankOption(
+    name: 'Faysal Bank',
+    shortCode: 'Faysal',
+    icon: Icons.account_balance,
+    iconBgColor: Color(0xFFE8F5E9),
+    iconColor: Color(0xFF1B5E20),
+  ),
+  const BankOption(
+    name: 'United Bank Limited (UBL)',
+    shortCode: 'UBL',
+    icon: Icons.account_balance,
+    iconBgColor: Color(0xFFE3F2FD),
+    iconColor: Color(0xFF0D47A1),
+  ),
+  const BankOption(
+    name: 'MCB Bank',
+    shortCode: 'MCB',
+    icon: Icons.account_balance,
+    iconBgColor: Color(0xFFFFF3E0),
+    iconColor: Color(0xFFE65100),
+  ),
+  const BankOption(
+    name: 'Bank Al Habib',
+    shortCode: 'BAH',
+    icon: Icons.account_balance,
+    iconBgColor: Color(0xFFE3F2FD),
+    iconColor: Color(0xFF1976D2),
+  ),
+  const BankOption(
+    name: 'Askari Bank',
+    shortCode: 'Askari',
+    icon: Icons.account_balance,
+    iconBgColor: Color(0xFFFCE4EC),
+    iconColor: Color(0xFFAD1457),
+  ),
+  const BankOption(
+    name: 'Standard Chartered Pakistan',
+    shortCode: 'SCB',
+    icon: Icons.account_balance,
+    iconBgColor: Color(0xFFE8F5E9),
+    iconColor: Color(0xFF2E7D32),
+  ),
+  const BankOption(
+    name: 'BankIslami Pakistan',
+    shortCode: 'BIslami',
+    icon: Icons.account_balance,
+    iconBgColor: Color(0xFFE8F5E9),
+    iconColor: Color(0xFF00695C),
+  ),
+  const BankOption(
+    name: 'Dubai Islamic Bank Pakistan',
+    shortCode: 'DIB',
+    icon: Icons.account_balance,
+    iconBgColor: Color(0xFFFFF8E1),
+    iconColor: Color(0xFFFF8F00),
+  ),
+  const BankOption(
+    name: 'EasyPaisa (Telenor Bank)',
+    shortCode: 'EasyPaisa',
+    icon: Icons.phone_android,
+    iconBgColor: Color(0xFFE8F5E9),
+    iconColor: Color(0xFF388E3C),
+  ),
+  const BankOption(
+    name: 'JazzCash (Mobilink Bank)',
+    shortCode: 'JazzCash',
+    icon: Icons.phone_android,
+    iconBgColor: Color(0xFFFFEBEE),
+    iconColor: Color(0xFFC62828),
+  ),
+  const BankOption(
+    name: 'SadaPay',
+    shortCode: 'SadaPay',
+    icon: Icons.phone_android,
+    iconBgColor: Color(0xFF1A1A2E),
+    iconColor: Colors.white,
+  ),
+  const BankOption(
+    name: 'NayaPay',
+    shortCode: 'NayaPay',
+    icon: Icons.phone_android,
+    iconBgColor: Color(0xFFE3F2FD),
+    iconColor: Color(0xFF1565C0),
+  ),
+];
+
 class AddAmountPage extends StatefulWidget {
   const AddAmountPage({super.key});
 
@@ -14,39 +161,7 @@ class AddAmountPage extends StatefulWidget {
 class _AddAmountPageState extends State<AddAmountPage> {
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
-  String? _selectedSource;
-
-  // All Pakistan banks list
-  final List<String> _sources = [
-    'Cash',
-    'HBL - Habib Bank Limited',
-    'UBL - United Bank Limited',
-    'MCB - Muslim Commercial Bank',
-    'ABL - Allied Bank Limited',
-    'NBP - National Bank of Pakistan',
-    'Bank Alfalah',
-    'Meezan Bank',
-    'Faysal Bank',
-    'Bank Al Habib',
-    'Askari Bank',
-    'Standard Chartered Pakistan',
-    'Summit Bank',
-    'Silk Bank',
-    'Soneri Bank',
-    'JS Bank',
-    'BankIslami Pakistan',
-    'Dubai Islamic Bank Pakistan',
-    'Bank of Punjab',
-    'Sindh Bank',
-    'Bank of Khyber',
-    'First Women Bank',
-    'SME Bank',
-    'Zarai Taraqiati Bank',
-    'EasyPaisa (Telenor Bank)',
-    'JazzCash (Mobilink Bank)',
-    'SadaPay',
-    'NayaPay',
-  ];
+  BankOption? _selectedBank;
 
   @override
   void dispose() {
@@ -70,6 +185,27 @@ class _AddAmountPageState extends State<AddAmountPage> {
     }
     // Return the amount to the home page
     Navigator.pop(context, amount);
+  }
+
+  void _showBankSelectionSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return _BankSelectionSheet(
+          banks: appBankOptions,
+          selectedBank: _selectedBank,
+          onSelected: (bank) {
+            setState(() => _selectedBank = bank);
+            Navigator.pop(ctx);
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -123,33 +259,42 @@ class _AddAmountPageState extends State<AddAmountPage> {
               ),
               const SizedBox(height: 20),
 
-              // Select Source (Pakistan banks)
+              // Select Source (Bank selection bottom sheet)
               _buildLabel('Select Source'),
-              DropdownButtonFormField<String>(
-                value: _selectedSource,
-                decoration: const InputDecoration(
-                  hintText: 'Select Source',
-                  prefixIcon: Icon(
-                    Icons.account_balance_outlined,
-                    color: AppColors.textSecondary,
+              GestureDetector(
+                onTap: _showBankSelectionSheet,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.inputBackground,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.account_balance_outlined,
+                        color: AppColors.textSecondary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _selectedBank?.name ?? 'Select Source',
+                          style: _selectedBank != null
+                              ? AppTextStyles.bodyMedium
+                              : AppTextStyles.bodyRegular
+                                  .copyWith(color: AppColors.textSecondary),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const Icon(
+                        Icons.keyboard_arrow_down,
+                        color: AppColors.textSecondary,
+                      ),
+                    ],
                   ),
                 ),
-                icon: const Icon(
-                  Icons.keyboard_arrow_down,
-                  color: AppColors.textSecondary,
-                ),
-                isExpanded: true,
-                items: _sources.map((String bank) {
-                  return DropdownMenuItem<String>(
-                    value: bank,
-                    child: Text(
-                      bank,
-                      style: AppTextStyles.bodyMedium,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  );
-                }).toList(),
-                onChanged: (val) => setState(() => _selectedSource = val),
               ),
               const SizedBox(height: 20),
 
@@ -231,6 +376,103 @@ class _AddAmountPageState extends State<AddAmountPage> {
             style: AppTextStyles.caption.copyWith(fontSize: 10),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Reusable Bank Selection Bottom Sheet ──────────────────────────
+class _BankSelectionSheet extends StatelessWidget {
+  final List<BankOption> banks;
+  final BankOption? selectedBank;
+  final ValueChanged<BankOption> onSelected;
+
+  const _BankSelectionSheet({
+    required this.banks,
+    required this.selectedBank,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.of(context).size.height * 0.6;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: Padding(
+        padding: const EdgeInsets.only(top: 12, left: 16, right: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Select Source', style: AppTextStyles.heading3),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Divider(height: 1),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                itemCount: banks.length,
+                separatorBuilder: (_, __) =>
+                    const Divider(height: 1, indent: 72),
+                itemBuilder: (context, index) {
+                  final bank = banks[index];
+                  final isSelected = selectedBank?.name == bank.name;
+                  return ListTile(
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    leading: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: bank.iconBgColor,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(bank.icon, color: bank.iconColor, size: 20),
+                    ),
+                    title: Text(
+                      bank.name,
+                      style: AppTextStyles.bodyMedium,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isSelected
+                              ? AppColors.primary
+                              : AppColors.textSecondary.withValues(alpha: 0.4),
+                          width: 2,
+                        ),
+                        color: isSelected ? AppColors.primary : Colors.transparent,
+                      ),
+                      child: isSelected
+                          ? const Icon(Icons.check, size: 14, color: Colors.white)
+                          : null,
+                    ),
+                    onTap: () => onSelected(bank),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
