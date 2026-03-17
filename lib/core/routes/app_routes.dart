@@ -12,6 +12,7 @@ class AppRoutes {
   AppRoutes._();
 
   // Route names
+  static const String root = '/';
   static const String login = '/login';
   static const String signup = '/signup';
   static const String home = '/home';
@@ -25,6 +26,7 @@ class AppRoutes {
   /// Route generator used by [MaterialApp.onGenerateRoute].
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
+      case root:
       case login:
         return _buildRoute(const LoginPage(), settings);
       case signup:
