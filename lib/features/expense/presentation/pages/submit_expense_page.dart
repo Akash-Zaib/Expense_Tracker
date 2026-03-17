@@ -451,6 +451,7 @@ class _BankSelectionSheet extends StatelessWidget {
   final List<BankOption> banks;
   final BankOption? selectedBank;
   final ValueChanged<BankOption> onSelected;
+  static const _silverDivider = Color(0xFFD1D5DB);
 
   const _BankSelectionSheet({
     required this.banks,
@@ -477,23 +478,19 @@ class _BankSelectionSheet extends StatelessWidget {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Select Bank', style: AppTextStyles.heading3),
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Divider(height: 1),
+            const SizedBox(height: 10),
             Flexible(
               child: ListView.separated(
                 shrinkWrap: true,
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 itemCount: banks.length,
                 separatorBuilder: (_, __) =>
-                    const Divider(height: 1, indent: 72),
+                    const Divider(
+                      height: 1,
+                      indent: 76,
+                      endIndent: 20,
+                      color: _silverDivider,
+                    ),
                 itemBuilder: (context, index) {
                   final bank = banks[index];
                   final isSelected = selectedBank?.name == bank.name;
@@ -562,6 +559,7 @@ class _CategorySelectionSheet extends StatefulWidget {
 
 class _CategorySelectionSheetState extends State<_CategorySelectionSheet> {
   final _customCategoryController = TextEditingController();
+  static const _silverDivider = Color(0xFFD1D5DB);
 
   @override
   void dispose() {
@@ -593,24 +591,14 @@ class _CategorySelectionSheetState extends State<_CategorySelectionSheet> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child:
-                    Text('Expense Category', style: AppTextStyles.heading3),
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Divider(height: 1),
+            const SizedBox(height: 10),
             Flexible(
               child: ListView.separated(
                 shrinkWrap: true,
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 itemCount: widget.categories.length,
                 separatorBuilder: (_, __) =>
-                    const Divider(height: 1, indent: 72),
+                    const Divider(height: 1, indent: 76, endIndent: 20, color: _silverDivider),
                 itemBuilder: (context, index) {
                   final cat = widget.categories[index];
                   final isSelected = widget.selectedCategory == cat.name;
@@ -655,7 +643,6 @@ class _CategorySelectionSheetState extends State<_CategorySelectionSheet> {
                 },
               ),
             ),
-            const Divider(height: 1),
             // Add Custom Category section
             Padding(
               padding:

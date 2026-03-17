@@ -295,7 +295,7 @@ class _HomeContent extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      '3 Partners',
+                      ' Partners',
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.primary,
                       ),
