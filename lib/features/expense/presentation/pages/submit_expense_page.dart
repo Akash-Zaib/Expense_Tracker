@@ -4,7 +4,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../shared/widgets/custom_button.dart';
 import '../../../../shared/widgets/custom_text_field.dart';
-import 'home_page.dart';
+import '../../domain/entities/expense_entry.dart';
 import 'add_amount_page.dart'; // For BankOption & appBankOptions
 
 /// Category model with name, icon, and color.

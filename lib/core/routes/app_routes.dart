@@ -4,6 +4,7 @@ import '../../features/auth/presentation/pages/signup_page.dart';
 import '../../features/expense/presentation/pages/home_page.dart';
 import '../../features/expense/presentation/pages/submit_expense_page.dart';
 import '../../features/expense/presentation/pages/add_amount_page.dart';
+import '../../features/notifications/presentation/pages/notifications_page.dart';
 
 /// Centralized route name constants for the entire app.
 class AppRoutes {
@@ -16,6 +17,7 @@ class AppRoutes {
   static const String home = '/home';
   static const String submitExpense = '/submit-expense';
   static const String addAmount = '/add-amount';
+  static const String notifications = '/notifications';
 
   /// The initial route when the app launches.
   static const String initial = login;
@@ -33,6 +35,8 @@ class AppRoutes {
         return _buildRoute(const SubmitExpensePage(), settings);
       case addAmount:
         return _buildRoute(const AddAmountPage(), settings);
+      case notifications:
+        return _buildRoute(const NotificationsPage(), settings);
       default:
         return _buildRoute(
           Scaffold(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 class AppColors {
   // Primary & Background
+  static const int primaryValue = 0xFF1E3A8A;
   static const Color primary = Color(0xFF1E3A8A); // Deep blue button
   static const Color background = Color(0xFFF4F6F9); // Light grayish app background
   static const Color cardBackground = Colors.white;

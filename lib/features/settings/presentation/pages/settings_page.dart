@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/di/injection_container.dart';
+import '../../../../core/routes/app_routes.dart';
+import '../store/settings_store.dart';
+import '../widgets/edit_profile_dialog.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -10,23 +14,41 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  bool _notificationsEnabled = true;
+  late final SettingsStore _store;
+
+  @override
+  void initState() {
+    super.initState();
+    _store = sl<SettingsStore>();
+    _store.load();
+  }
+
+  @override
+  void dispose() {
+    _store.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildHeader(context),
-          const SizedBox(height: 24),
-          _buildProfileCard(context),
-          const SizedBox(height: 16),
-          _buildSettingsSection(context),
-          const SizedBox(height: 80),
-        ],
-      ),
+    return AnimatedBuilder(
+      animation: _store,
+      builder: (context, _) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(context),
+              const SizedBox(height: 24),
+              _buildProfileCard(context),
+              const SizedBox(height: 16),
+              _buildSettingsSection(context),
+              const SizedBox(height: 80),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -97,7 +119,10 @@ class _SettingsPageState extends State<SettingsPage> {
           child: IconButton(
             icon: const Icon(Icons.notifications_outlined,
                 color: AppColors.primary),
-            onPressed: () {},
+            onPressed: () => Navigator.pushNamed(
+              context,
+              AppRoutes.notifications,
+            ),
             constraints: const BoxConstraints(),
             padding: const EdgeInsets.all(8),
           ),
@@ -108,6 +133,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   // ── PROFILE CARD ─────────────────────────────────────────
   Widget _buildProfileCard(BuildContext context) {
+    final profile = _store.profile;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -139,7 +165,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(
-                  color: AppColors.primary,
+                  color: profile == null
+                      ? AppColors.primary
+                      : Color(profile.signatureColorValue),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(
@@ -155,12 +183,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'You',
+                      profile?.name ?? 'You',
                       style: AppTextStyles.title,
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'user@alnoortraders.com',
+                      profile?.email ?? 'user@alnoortraders.com',
                       style: AppTextStyles.caption,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -168,17 +196,34 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               // Edit button
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: AppColors.blueLight,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.edit_outlined,
-                  color: AppColors.primary,
-                  size: 18,
+              InkWell(
+                onTap: profile == null
+                    ? null
+                    : () async {
+                        final result = await showEditProfileDialog(
+                          context: context,
+                          initialName: profile.name,
+                          initialSignatureColorValue: profile.signatureColorValue,
+                        );
+                        if (result == null) return;
+                        await _store.updateProfile(
+                          name: result.name,
+                          signatureColorValue: result.signatureColorValue,
+                        );
+                      },
+                borderRadius: BorderRadius.circular(999),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: const BoxDecoration(
+                    color: AppColors.blueLight,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.edit_outlined,
+                    color: AppColors.primary,
+                    size: 18,
+                  ),
                 ),
               ),
             ],
@@ -316,16 +361,16 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  _notificationsEnabled ? 'Enabled' : 'Disabled',
+                  _store.notificationsEnabled ? 'Enabled' : 'Disabled',
                   style: AppTextStyles.caption,
                 ),
               ],
             ),
           ),
           Switch(
-            value: _notificationsEnabled,
-            onChanged: (val) => setState(() => _notificationsEnabled = val),
-            activeColor: Colors.white,
+            value: _store.notificationsEnabled,
+            onChanged: _store.setNotificationsEnabled,
+            activeThumbColor: Colors.white,
             activeTrackColor: AppColors.primary,
             inactiveThumbColor: Colors.white,
             inactiveTrackColor: AppColors.border,
@@ -362,6 +407,11 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildDivider() {
-    return const Divider(height: 1, indent: 56, endIndent: 20);
+    return Divider(
+      height: 1,
+      indent: 56,
+      endIndent: 20,
+      color: AppColors.border.withValues(alpha: 0.9),
+    );
   }
 }

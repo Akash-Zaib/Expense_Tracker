@@ -1,32 +1,15 @@
+import 'package:expense_tracker/features/settings/presentation/pages/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/routes/app_routes.dart';
-import 'analytics_page.dart';
-import 'wallet_page.dart';
-import 'settings_page.dart';
+import '../../../../core/di/injection_container.dart';
 
-/// Model for an expense entry.
-class ExpenseEntry {
-  final String description;
-  final double amount;
-  final String category;
-  final DateTime date;
-  final TimeOfDay time;
-  final String paidBy;
-  final bool isCredit; // true = green (you/personal), false = red (other user)
-
-  const ExpenseEntry({
-    required this.description,
-    required this.amount,
-    required this.category,
-    required this.date,
-    required this.time,
-    required this.paidBy,
-    this.isCredit = false,
-  });
-}
+import '../../../analytics/presentation/pages/analytics_page.dart';
+import '../../../wallet/presentation/pages/wallet_page.dart';
+import '../../domain/entities/expense_entry.dart';
+import '../store/transactions_store.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -37,6 +20,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _currentNavIndex = 0;
+  late final TransactionsStore _transactionsStore;
 
   // Dummy data – will be replaced with Firebase data later
   double _availableBalance = 22450;
@@ -91,6 +75,8 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _transactionsStore = sl<TransactionsStore>();
+    _transactionsStore.seedIfEmpty(_entries);
     _pages = [
       _HomeContent(
         availableBalance: _availableBalance,
@@ -103,9 +89,9 @@ class _HomePageState extends State<HomePage> {
         onAddCash: _navigateToAddAmount,
         onSubmitExpense: _navigateToSubmitExpense,
       ),
-      const AnalyticsPage(),
-      const WalletPage(),
-      const SettingsPage(),
+      const AnalyticsPage(), // TODO: Replace with actual analytics page
+      const WalletPage(), // TODO: Replace with actual wallet page
+      const SettingsPage(), // TODO: Replace with actual settings page
     ];
   }
 
@@ -138,6 +124,7 @@ class _HomePageState extends State<HomePage> {
     if (result != null && result is ExpenseEntry) {
       setState(() {
         _entries.insert(0, result);
+        _transactionsStore.add(result);
         if (!result.isCredit) {
           _availableBalance -= result.amount;
         }
@@ -151,15 +138,12 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: IndexedStack(
-          index: _currentNavIndex,
-          children: _pages,
-        ),
+        child: IndexedStack(index: _currentNavIndex, children: _pages),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endDocked,
       floatingActionButton: _currentNavIndex == 0
           ? Padding(
-              padding: const EdgeInsets.only(bottom: 20, right: 10),
+              padding: const EdgeInsets.only(bottom: 84, right: 10),
               child: FloatingActionButton(
                 onPressed: _navigateToSubmitExpense,
                 backgroundColor: AppColors.primary,
@@ -312,8 +296,9 @@ class _HomeContent extends StatelessWidget {
                     ),
                     Text(
                       '3 Partners',
-                      style:
-                          AppTextStyles.caption.copyWith(color: AppColors.primary),
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.primary,
+                      ),
                     ),
                   ],
                 ),
@@ -328,8 +313,12 @@ class _HomeContent extends StatelessWidget {
             border: Border.all(color: AppColors.border),
           ),
           child: IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: AppColors.primary),
-            onPressed: () {},
+            icon: const Icon(
+              Icons.notifications_outlined,
+              color: AppColors.primary,
+            ),
+            onPressed: () =>
+                Navigator.pushNamed(context, AppRoutes.notifications),
             constraints: const BoxConstraints(),
             padding: const EdgeInsets.all(8),
           ),
@@ -408,8 +397,11 @@ class _HomeContent extends StatelessWidget {
                     const SizedBox(width: 8),
                     const Padding(
                       padding: EdgeInsets.only(top: 6),
-                      child: Icon(Icons.open_in_new,
-                          color: AppColors.primary, size: 20),
+                      child: Icon(
+                        Icons.open_in_new,
+                        color: AppColors.primary,
+                        size: 20,
+                      ),
                     ),
                   ],
                 ),
@@ -422,8 +414,10 @@ class _HomeContent extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.primary,
                   side: const BorderSide(color: AppColors.primary),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                   ),
@@ -518,10 +512,7 @@ class _HomeContent extends StatelessWidget {
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    amount,
-                    style: AppTextStyles.heading3,
-                  ),
+                  child: Text(amount, style: AppTextStyles.heading3),
                 ),
               ),
               const SizedBox(width: 4),
@@ -569,8 +560,9 @@ class _HomeContent extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               'No entries yet',
-              style: AppTextStyles.bodyMedium
-                  .copyWith(color: AppColors.textSecondary),
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
