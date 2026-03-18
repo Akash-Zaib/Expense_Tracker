@@ -1,3 +1,4 @@
+import 'package:expense_tracker/features/expense/presentation/pages/personal_expense.dart';
 import 'package:expense_tracker/features/settings/presentation/pages/settings_page.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -395,12 +396,22 @@ class _HomeContent extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Padding(
-                      padding: EdgeInsets.only(top: 6),
-                      child: Icon(
-                        Icons.open_in_new,
-                        color: AppColors.primary,
-                        size: 20,
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PersonalExpensesScreen(),
+                          ),
+                        );
+                      },
+                      child: const Padding(
+                        padding: EdgeInsets.only(top: 6),
+                        child: Icon(
+                          Icons.open_in_new,
+                          color: AppColors.primary,
+                          size: 20,
+                        ),
                       ),
                     ),
                   ],
