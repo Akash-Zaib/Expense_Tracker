@@ -3,6 +3,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/routes/app_routes.dart';
+import '../../../auth/presentation/store/auth_store.dart';
 import '../store/settings_store.dart';
 import '../widgets/edit_profile_dialog.dart';
 
@@ -15,6 +16,8 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late final SettingsStore _store;
+  // Initialize here so hot-reload doesn't break late init.
+  final AuthStore _authStore = sl<AuthStore>();
 
   @override
   void initState() {
@@ -375,9 +378,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildLogoutTile() {
     return InkWell(
-      onTap: () {
-        // TODO: Implement logout
-      },
+      onTap: _confirmLogout,
       borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -394,6 +395,47 @@ class _SettingsPageState extends State<SettingsPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _confirmLogout() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Logout'),
+          content: const Text('Are you sure you want to logout?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Logout'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldLogout != true) return;
+    if (!mounted) return;
+
+    await _authStore.logout();
+    if (!mounted) return;
+
+    if (_authStore.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_authStore.error!)),
+      );
+      return;
+    }
+
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      AppRoutes.login,
+      (route) => false,
     );
   }
 

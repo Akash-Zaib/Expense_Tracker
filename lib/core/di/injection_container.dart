@@ -1,6 +1,15 @@
 import 'package:get_it/get_it.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../features/auth/data/datasources/auth_remote_data_source.dart';
+import '../../features/auth/data/datasources/firebase_auth_remote_data_source.dart';
+import '../../features/auth/data/repositories/auth_repository_impl.dart';
+import '../../features/auth/domain/repositories/auth_repository.dart';
+import '../../features/auth/domain/usecases/login_with_email.dart';
+import '../../features/auth/domain/usecases/logout.dart';
+import '../../features/auth/domain/usecases/signup_with_email.dart';
+import '../../features/auth/presentation/store/auth_store.dart';
 import '../../features/settings/data/datasources/settings_local_data_source.dart';
 import '../../features/settings/data/repositories/settings_repository_impl.dart';
 import '../../features/settings/domain/repositories/settings_repository.dart';
@@ -23,6 +32,25 @@ Future<void> init() async {
   // External
   final prefs = await SharedPreferences.getInstance();
   sl.registerLazySingleton<SharedPreferences>(() => prefs);
+
+  // External - Firebase
+  sl.registerLazySingleton<FirebaseAuth>(() => FirebaseAuth.instance);
+
+  // Features - Auth
+  sl.registerLazySingleton<AuthRemoteDataSource>(
+    () => FirebaseAuthRemoteDataSourceImpl(sl()),
+  );
+  sl.registerLazySingleton<AuthRepository>(() => AuthRepositoryImpl(sl()));
+  sl.registerLazySingleton(() => LoginWithEmail(sl()));
+  sl.registerLazySingleton(() => Logout(sl()));
+  sl.registerLazySingleton(() => SignupWithEmail(sl()));
+  sl.registerFactory(
+    () => AuthStore(
+      signupWithEmail: sl(),
+      loginWithEmail: sl(),
+      logoutUsecase: sl(),
+    ),
+  );
 
   // Features - Settings
   sl.registerLazySingleton<SettingsLocalDataSource>(
