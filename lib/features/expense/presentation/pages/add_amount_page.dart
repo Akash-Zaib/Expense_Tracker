@@ -1,8 +1,22 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/di/injection_container.dart';
+import '../../../banks/presentation/store/banks_store.dart';
 import '../../../../shared/widgets/custom_button.dart';
 import '../../../../shared/widgets/custom_text_field.dart';
+
+class AddAmountResult {
+  final double amount;
+  final String description;
+  final String? bankName;
+
+  const AddAmountResult({
+    required this.amount,
+    required this.description,
+    required this.bankName,
+  });
+}
 
 /// Bank model with name, short code, icon, and color.
 class BankOption {
@@ -11,6 +25,7 @@ class BankOption {
   final IconData icon;
   final Color iconBgColor;
   final Color iconColor;
+  final String? subtitle;
 
   const BankOption({
     required this.name,
@@ -18,138 +33,22 @@ class BankOption {
     required this.icon,
     required this.iconBgColor,
     required this.iconColor,
+    this.subtitle,
   });
 }
 
-/// All bank options used across the app (shared list).
-final List<BankOption> appBankOptions = [
-  const BankOption(
-    name: 'By Cash',
-    shortCode: 'Cash',
-    icon: Icons.monetization_on,
-    iconBgColor: Color(0xFFE8F5E9),
-    iconColor: Color(0xFF4CAF50),
-  ),
-  const BankOption(
-    name: 'Allied Bank Limited (ABL)',
-    shortCode: 'ABL',
-    icon: Icons.account_balance,
-    iconBgColor: Color(0xFFFFEBEE),
-    iconColor: Color(0xFFC62828),
-  ),
-  const BankOption(
-    name: 'Bank Alfalah',
-    shortCode: 'Alfalah',
-    icon: Icons.account_balance,
-    iconBgColor: Color(0xFFE3F2FD),
-    iconColor: Color(0xFF1565C0),
-  ),
-  const BankOption(
-    name: 'National Bank of Pakistan (NBP)',
-    shortCode: 'NBP',
-    icon: Icons.account_balance,
-    iconBgColor: Color(0xFFE8F5E9),
-    iconColor: Color(0xFF2E7D32),
-  ),
-  const BankOption(
-    name: 'Habib Bank Limited (HBL)',
-    shortCode: 'HBL',
-    icon: Icons.account_balance,
-    iconBgColor: Color(0xFFE8F5E9),
-    iconColor: Color(0xFF388E3C),
-  ),
-  const BankOption(
-    name: 'Meezan Bank',
-    shortCode: 'Meezan',
-    icon: Icons.account_balance,
-    iconBgColor: Color(0xFFF3E5F5),
-    iconColor: Color(0xFF6A1B9A),
-  ),
-  const BankOption(
-    name: 'Faysal Bank',
-    shortCode: 'Faysal',
-    icon: Icons.account_balance,
-    iconBgColor: Color(0xFFE8F5E9),
-    iconColor: Color(0xFF1B5E20),
-  ),
-  const BankOption(
-    name: 'United Bank Limited (UBL)',
-    shortCode: 'UBL',
-    icon: Icons.account_balance,
-    iconBgColor: Color(0xFFE3F2FD),
-    iconColor: Color(0xFF0D47A1),
-  ),
-  const BankOption(
-    name: 'MCB Bank',
-    shortCode: 'MCB',
-    icon: Icons.account_balance,
-    iconBgColor: Color(0xFFFFF3E0),
-    iconColor: Color(0xFFE65100),
-  ),
-  const BankOption(
-    name: 'Bank Al Habib',
-    shortCode: 'BAH',
-    icon: Icons.account_balance,
-    iconBgColor: Color(0xFFE3F2FD),
-    iconColor: Color(0xFF1976D2),
-  ),
-  const BankOption(
-    name: 'Askari Bank',
-    shortCode: 'Askari',
-    icon: Icons.account_balance,
-    iconBgColor: Color(0xFFFCE4EC),
-    iconColor: Color(0xFFAD1457),
-  ),
-  const BankOption(
-    name: 'Standard Chartered Pakistan',
-    shortCode: 'SCB',
-    icon: Icons.account_balance,
-    iconBgColor: Color(0xFFE8F5E9),
-    iconColor: Color(0xFF2E7D32),
-  ),
-  const BankOption(
-    name: 'BankIslami Pakistan',
-    shortCode: 'BIslami',
-    icon: Icons.account_balance,
-    iconBgColor: Color(0xFFE8F5E9),
-    iconColor: Color(0xFF00695C),
-  ),
-  const BankOption(
-    name: 'Dubai Islamic Bank Pakistan',
-    shortCode: 'DIB',
-    icon: Icons.account_balance,
-    iconBgColor: Color(0xFFFFF8E1),
-    iconColor: Color(0xFFFF8F00),
-  ),
-  const BankOption(
-    name: 'EasyPaisa (Telenor Bank)',
-    shortCode: 'EasyPaisa',
-    icon: Icons.phone_android,
-    iconBgColor: Color(0xFFE8F5E9),
-    iconColor: Color(0xFF388E3C),
-  ),
-  const BankOption(
-    name: 'JazzCash (Mobilink Bank)',
-    shortCode: 'JazzCash',
-    icon: Icons.phone_android,
-    iconBgColor: Color(0xFFFFEBEE),
-    iconColor: Color(0xFFC62828),
-  ),
-  const BankOption(
-    name: 'SadaPay',
-    shortCode: 'SadaPay',
-    icon: Icons.phone_android,
-    iconBgColor: Color(0xFF1A1A2E),
-    iconColor: Colors.white,
-  ),
-  const BankOption(
-    name: 'NayaPay',
-    shortCode: 'NayaPay',
-    icon: Icons.phone_android,
-    iconBgColor: Color(0xFFE3F2FD),
-    iconColor: Color(0xFF1565C0),
-  ),
-];
+const BankOption _cashOption = BankOption(
+  name: 'By Cash',
+  shortCode: 'Cash',
+  icon: Icons.monetization_on,
+  iconBgColor: Color(0xFFE8F5E9),
+  iconColor: Color(0xFF4CAF50),
+);
+
+/// Legacy export used by other pages.
+/// Prefer building options from `BanksStore` instead (Wallet-saved banks).
+@Deprecated('Use BanksStore-based dynamic options')
+final List<BankOption> appBankOptions = [_cashOption];
 
 class AddAmountPage extends StatefulWidget {
   const AddAmountPage({super.key});
@@ -162,6 +61,14 @@ class _AddAmountPageState extends State<AddAmountPage> {
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
   BankOption? _selectedBank;
+  late final BanksStore _banksStore;
+
+  @override
+  void initState() {
+    super.initState();
+    _banksStore = sl<BanksStore>();
+    _banksStore.load();
+  }
 
   @override
   void dispose() {
@@ -183,11 +90,40 @@ class _AddAmountPageState extends State<AddAmountPage> {
       );
       return;
     }
-    // Return the amount to the home page
-    Navigator.pop(context, amount);
+
+    final desc = _descriptionController.text.trim().isEmpty
+        ? 'Amount Added'
+        : _descriptionController.text.trim();
+
+    Navigator.pop(
+      context,
+      AddAmountResult(
+        amount: amount,
+        description: desc,
+        bankName: _selectedBank?.name ?? 'By Cash',
+      ),
+    );
   }
 
   void _showBankSelectionSheet() {
+    final banks = <BankOption>[
+      _cashOption,
+      ..._banksStore.banks.where((b) => b.isSubmitted).map((b) {
+        final short = b.name.trim().isEmpty ? 'BANK' : b.name.trim().split(' ').first;
+        final acc = (b.accountNumber == null || b.accountNumber!.trim().isEmpty)
+            ? null
+            : 'A/C: ${b.accountNumber}';
+        return BankOption(
+          name: b.name,
+          shortCode: short,
+          icon: Icons.account_balance,
+          iconBgColor: const Color(0xFFE3F2FD),
+          iconColor: AppColors.primary,
+          subtitle: acc,
+        );
+      }),
+    ];
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -197,7 +133,7 @@ class _AddAmountPageState extends State<AddAmountPage> {
       ),
       builder: (ctx) {
         return _BankSelectionSheet(
-          banks: appBankOptions,
+          banks: banks,
           selectedBank: _selectedBank,
           onSelected: (bank) {
             setState(() => _selectedBank = bank);
@@ -425,7 +361,7 @@ class _BankSelectionSheet extends StatelessWidget {
             Flexible(
               child: ListView.separated(
                 shrinkWrap: true,
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.fromLTRB(0, 8, 0, 72),
                 itemCount: banks.length,
                 separatorBuilder: (_, __) =>
                     const Divider(height: 1, indent: 72),
@@ -449,6 +385,13 @@ class _BankSelectionSheet extends StatelessWidget {
                       style: AppTextStyles.bodyMedium,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    subtitle: bank.subtitle == null
+                        ? null
+                        : Text(
+                            bank.subtitle!,
+                            style: AppTextStyles.caption,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                     trailing: Container(
                       width: 22,
                       height: 22,

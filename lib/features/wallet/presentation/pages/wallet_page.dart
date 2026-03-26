@@ -3,8 +3,9 @@ import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/di/injection_container.dart';
-import '../../../expense/domain/entities/expense_entry.dart';
 import '../../../expense/presentation/store/transactions_store.dart';
+import '../../../banks/domain/entities/bank.dart';
+import '../../../banks/presentation/store/banks_store.dart';
 
 class WalletPage extends StatefulWidget {
   const WalletPage({super.key});
@@ -15,19 +16,23 @@ class WalletPage extends StatefulWidget {
 
 class _WalletPageState extends State<WalletPage> {
   late final TransactionsStore _transactionsStore;
+  late final BanksStore _banksStore;
 
   @override
   void initState() {
     super.initState();
     _transactionsStore = sl<TransactionsStore>();
+    _banksStore = sl<BanksStore>();
+    _banksStore.load();
   }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _transactionsStore,
+      animation: Listenable.merge([_transactionsStore, _banksStore]),
       builder: (context, _) {
         final tx = _transactionsStore.transactions;
+        final banks = _banksStore.banks;
 
         final totalSpent = tx.fold<double>(
           0,
@@ -49,7 +54,7 @@ class _WalletPageState extends State<WalletPage> {
               const SizedBox(height: 16),
               _buildQuickActions(),
               const SizedBox(height: 16),
-              _buildRecentTransactions(tx),
+              _buildBanksSection(banks),
               const SizedBox(height: 80),
             ],
           ),
@@ -242,26 +247,11 @@ class _WalletPageState extends State<WalletPage> {
   }
 
   Widget _buildQuickActions() {
-    return Row(
-      children: [
-        Expanded(
-          child: _actionCard(
-            icon: Icons.add_card,
-            title: 'Add Bank',
-            subtitle: 'Link an account',
-            onTap: () {},
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _actionCard(
-            icon: Icons.swap_horiz,
-            title: 'Transfer',
-            subtitle: 'Move funds',
-            onTap: () {},
-          ),
-        ),
-      ],
+    return _actionCard(
+      icon: Icons.add_card,
+      title: 'Add Bank',
+      subtitle: 'Add / manage accounts',
+      onTap: _openAddBankSheet,
     );
   }
 
@@ -316,8 +306,8 @@ class _WalletPageState extends State<WalletPage> {
     );
   }
 
-  Widget _buildRecentTransactions(List<ExpenseEntry> tx) {
-    final items = tx.take(8).toList();
+  Widget _buildBanksSection(List<Bank> banks) {
+    final hasUnsubmitted = banks.any((b) => !b.isSubmitted);
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -336,34 +326,172 @@ class _WalletPageState extends State<WalletPage> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-            child: Text('Recent Transactions', style: AppTextStyles.title),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text('My Banks', style: AppTextStyles.title),
+                ),
+                TextButton(
+                  onPressed: hasUnsubmitted
+                      ? () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          await _banksStore.submitAll();
+                          if (!mounted) return;
+                          messenger.showSnackBar(
+                            const SnackBar(content: Text('Submitted. Banks are now locked.')),
+                          );
+                        }
+                      : null,
+                  child: const Text('Submit'),
+                ),
+              ],
+            ),
           ),
           Divider(height: 1, color: AppColors.border.withValues(alpha: 0.9)),
-          if (items.isEmpty)
+          if (banks.isEmpty)
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text('No transactions yet', style: AppTextStyles.caption),
+              child: Text('No banks yet. Tap “Add Bank” to create one.', style: AppTextStyles.caption),
             )
           else
-            ...items.map((e) => _WalletTxRow(entry: e)),
+            ...banks.map((b) => _BankRow(
+                  bank: b,
+                  onDelete: b.isSubmitted ? null : () => _banksStore.removeById(b.id),
+                )),
         ],
+      ),
+    );
+  }
+
+  Future<void> _openAddBankSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return _AddBankBottomSheet(banksStore: _banksStore);
+      },
+    );
+  }
+}
+
+class _AddBankBottomSheet extends StatefulWidget {
+  final BanksStore banksStore;
+
+  const _AddBankBottomSheet({required this.banksStore});
+
+  @override
+  State<_AddBankBottomSheet> createState() => _AddBankBottomSheetState();
+}
+
+class _AddBankBottomSheetState extends State<_AddBankBottomSheet> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _accController;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController();
+    _accController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _accController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 14,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(18),
+          topRight: Radius.circular(18),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Add Bank', style: AppTextStyles.title),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text('Add custom bank', style: AppTextStyles.caption),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _nameController,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Bank name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _accController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Account number (optional)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () async {
+                  final navigator = Navigator.of(context);
+                  await widget.banksStore.addNew(
+                    name: _nameController.text,
+                    accountNumber: _accController.text,
+                  );
+                  if (!mounted) return;
+                  navigator.pop(); // close after adding
+                },
+                child: const Text('Add'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _WalletTxRow extends StatelessWidget {
-  final ExpenseEntry entry;
+class _BankRow extends StatelessWidget {
+  final Bank bank;
+  final VoidCallback? onDelete;
 
-  const _WalletTxRow({required this.entry});
+  const _BankRow({
+    required this.bank,
+    this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final dateFormat = DateFormat('dd MMM yyyy');
-    final amountFormat = NumberFormat('#,##0', 'en_US');
-
-    final isIn = entry.isCredit;
-    final color = isIn ? AppColors.greenDark : AppColors.redDark;
+    final subtitle = bank.accountNumber == null || bank.accountNumber!.trim().isEmpty
+        ? null
+        : 'A/C: ${bank.accountNumber}';
 
     return Column(
       children: [
@@ -375,14 +503,10 @@ class _WalletTxRow extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
+                  color: AppColors.primary.withValues(alpha: 0.10),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  isIn ? Icons.arrow_downward : Icons.arrow_upward,
-                  color: color,
-                  size: 18,
-                ),
+                child: Icon(Icons.account_balance, color: AppColors.primary, size: 18),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -390,31 +514,31 @@ class _WalletTxRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      entry.description,
+                      bank.name,
                       style: AppTextStyles.bodyMedium,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${entry.category} • ${dateFormat.format(entry.date)}',
-                      style: AppTextStyles.caption,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: AppTextStyles.caption,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ],
                 ),
               ),
               const SizedBox(width: 10),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 140),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    '${isIn ? '+' : '-'}${amountFormat.format(entry.amount)}',
-                    style: AppTextStyles.title.copyWith(color: color),
-                  ),
+              if (bank.isSubmitted)
+                Icon(Icons.lock, size: 18, color: AppColors.border)
+              else
+                IconButton(
+                  onPressed: onDelete,
+                  icon: const Icon(Icons.delete_outline),
+                  color: AppColors.redDark,
+                  tooltip: 'Delete',
                 ),
-              ),
             ],
           ),
         ),

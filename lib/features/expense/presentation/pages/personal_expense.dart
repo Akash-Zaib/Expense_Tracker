@@ -1,283 +1,286 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+
+import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/di/injection_container.dart';
+import '../../domain/entities/expense_entry.dart';
+import '../store/transactions_store.dart';
 
 class PersonalExpensesScreen extends StatelessWidget {
   const PersonalExpensesScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final activities = [
-      ExpenseActivity(
-        title: 'Wholesale Purchase',
-        date: '18 Feb 2026',
-        addedBy: 'Me',
-        paidBy: 'Saeed',
-        category: 'Wholesale Purchase',
-        bank: 'HBL Bank',
-        amount: '450',
-      ),
-      ExpenseActivity(
-        title: 'Wholesale Purchase',
-        date: '18 Feb 2026',
-        addedBy: 'Badar',
-        paidBy: 'Saeed',
-        category: 'Wholesale Purchase',
-        bank: 'HBL Bank',
-        amount: '450',
-      ),
-      ExpenseActivity(
-        title: 'Wholesale Purchase',
-        date: '18 Feb 2026',
-        addedBy: 'Badar',
-        paidBy: 'Saeed',
-        category: 'Wholesale Purchase',
-        bank: 'HBL Bank',
-        amount: '450',
-      ),
-      ExpenseActivity(
-        title: 'Wholesale Purchase',
-        date: '18 Feb 2026',
-        addedBy: 'Me',
-        paidBy: 'Saeed',
-        category: 'Wholesale Purchase',
-        bank: 'HBL Bank',
-        amount: '450',
-      ),
-      ExpenseActivity(
-        title: 'Wholesale Purchase',
-        date: '18 Feb 2026',
-        addedBy: 'Me',
-        paidBy: 'Saeed',
-        category: 'Wholesale Purchase',
-        bank: 'HBL Bank',
-        amount: '450',
-      ),
-    ];
+    final store = sl<TransactionsStore>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F9),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {},
-        backgroundColor: const Color(0xFF23419C),
-        elevation: 6,
-        shape: const CircleBorder(),
-        child: const Icon(Icons.add, color: Colors.white, size: 30),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.textPrimary),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text('Personal Expenses', style: AppTextStyles.title),
+        centerTitle: true,
       ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      body: AnimatedBuilder(
+        animation: store,
+        builder: (context, _) {
+          final items = store.transactions.toList()
+            ..sort((a, b) {
+              final dateCmp = b.date.compareTo(a.date);
+              if (dateCmp != 0) return dateCmp;
+              final aMin = a.time.hour * 60 + a.time.minute;
+              final bMin = b.time.hour * 60 + b.time.minute;
+              return bMin.compareTo(aMin);
+            });
+
+          final addedTotal = items
+              .where((e) => e.kind == ExpenseEntryKind.amountAdded)
+              .fold<double>(0, (sum, e) => sum + e.amount);
+
+          final grouped = _groupByDay(items);
+          final groupKeys = grouped.keys.toList()
+            ..sort((a, b) => b.compareTo(a));
+
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
             children: [
-              const SizedBox(height: 8),
-
-              Row(
-                children: [
-                  Container(
-                    height: 38,
-                    width: 38,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF0F1F7),
-                      borderRadius: BorderRadius.circular(19),
-                    ),
-                    child: IconButton(
-                      padding: EdgeInsets.zero,
-                      icon: const Icon(
-                        Icons.arrow_back_ios_new,
-                        size: 16,
-                        color: Color(0xFF5A6270),
-                      ),
-                      onPressed: () => Navigator.pop(context),
+              _TotalCard(totalAddedAmount: addedTotal),
+              const SizedBox(height: 16),
+              if (items.isEmpty)
+                _EmptyState()
+              else
+                for (final day in groupKeys) ...[
+                  _SectionHeader(title: _formatSectionTitle(day)),
+                  const SizedBox(height: 10),
+                  _TimelineCard(
+                    entries: grouped[day]!,
+                    onTapEntry: (entry) => showDialog(
+                      context: context,
+                      barrierDismissible: true,
+                      builder: (_) => _EntryDetailsDialog(entry: entry),
                     ),
                   ),
-                  const Expanded(
-                    child: Center(
-                      child: Text(
-                        'Personal Expenses',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1A2233),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 38),
+                  const SizedBox(height: 16),
                 ],
-              ),
-
-              const SizedBox(height: 28),
-
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFDDE8E4),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'My Personal Expenses',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF21303A),
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                '1 Feb 2026 - 30 Feb 2026',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF64707D),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          height: 42,
-                          width: 42,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF1F4FF),
-                            borderRadius: BorderRadius.circular(21),
-                          ),
-                          child: const Icon(
-                            Icons.calendar_today_outlined,
-                            size: 20,
-                            color: Color(0xFF3552B8),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      '12,000',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF182235),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              Expanded(
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Recent Activity',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF1E2430),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Expanded(
-                        child: ListView.separated(
-                          itemCount: activities.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final item = activities[index];
-
-                            return GestureDetector(
-                              onTap: () {
-                                showDialog(
-                                  context: context,
-                                  barrierDismissible: true,
-                                  builder: (_) =>
-                                      PaymentDetailsDialog(activity: item),
-                                );
-                              },
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 14,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF8F8FB),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            item.title,
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w600,
-                                              color: Color(0xFF202734),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            '${item.date} - Added By ${item.addedBy}',
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              color: Color(0xFF667085),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Text(
-                                      item.amount,
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w800,
-                                        color: Color(0xFF202734),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
             ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _TotalCard extends StatelessWidget {
+  final double totalAddedAmount;
+
+  const _TotalCard({required this.totalAddedAmount});
+
+  @override
+  Widget build(BuildContext context) {
+    final formatter = NumberFormat('#,##0', 'en_US');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.greenLight,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Total Amount Added',
+                  style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  formatter.format(totalAddedAmount),
+                  style: AppTextStyles.heading3,
+                ),
+              ],
+            ),
           ),
+          Container(
+            height: 42,
+            width: 42,
+            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+            child: const Icon(Icons.add_circle_outline, color: AppColors.primary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+
+  const _SectionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        title,
+        style: AppTextStyles.caption.copyWith(
+          color: AppColors.textSecondary,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
 }
 
-class PaymentDetailsDialog extends StatelessWidget {
-  final ExpenseActivity activity;
+class _TimelineCard extends StatelessWidget {
+  final List<ExpenseEntry> entries;
+  final ValueChanged<ExpenseEntry> onTapEntry;
 
-  const PaymentDetailsDialog({super.key, required this.activity});
+  const _TimelineCard({required this.entries, required this.onTapEntry});
 
   @override
   Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+      ),
+      child: Column(
+        children: [
+          for (int i = 0; i < entries.length; i++) ...[
+            _TimelineRow(entry: entries[i], onTap: () => onTapEntry(entries[i])),
+            if (i != entries.length - 1)
+              Divider(
+                height: 1,
+                indent: 68,
+                endIndent: 16,
+                color: AppColors.border.withValues(alpha: 0.9),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TimelineRow extends StatelessWidget {
+  final ExpenseEntry entry;
+  final VoidCallback onTap;
+
+  const _TimelineRow({required this.entry, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final formatter = NumberFormat('#,##0', 'en_US');
+    final isAdded = entry.kind == ExpenseEntryKind.amountAdded;
+
+    final initials = (entry.addedBy.trim().isEmpty ? 'You' : entry.addedBy)
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((p) => p.isNotEmpty)
+        .take(2)
+        .map((p) => p[0].toUpperCase())
+        .join();
+
+    final subtitleParts = <String>[
+      'Added by ${entry.addedBy}',
+      if (isAdded && (entry.bankName ?? '').trim().isNotEmpty) 'Source ${entry.bankName}',
+      if (!isAdded && entry.paidBy.trim().isNotEmpty) 'Paid by ${entry.paidBy}',
+    ];
+
+    final amountText = isAdded ? '+${formatter.format(entry.amount)}' : formatter.format(entry.amount);
+    final amountColor = isAdded ? const Color(0xFF16A34A) : AppColors.textPrimary;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: 18,
+              backgroundColor: isAdded ? const Color(0xFF22C55E) : AppColors.primary,
+              child: Text(
+                initials.isEmpty ? 'U' : initials,
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isAdded ? 'Amount Added' : entry.description,
+                    style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w700),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitleParts.join(' • '),
+                    style: AppTextStyles.caption,
+                  ),
+                  if (!isAdded && entry.category.trim().isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      entry.category,
+                      style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              amountText,
+              style: AppTextStyles.bodyMedium.copyWith(
+                fontWeight: FontWeight.w700,
+                color: amountColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EntryDetailsDialog extends StatelessWidget {
+  final ExpenseEntry entry;
+
+  const _EntryDetailsDialog({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final dateFmt = DateFormat('dd MMM yyyy');
+    final time = entry.time.format(context);
+    final amountFmt = NumberFormat('#,##0', 'en_US');
+    final isAdded = entry.kind == ExpenseEntryKind.amountAdded;
+
     return Dialog(
       backgroundColor: Colors.white,
       insetPadding: const EdgeInsets.symmetric(horizontal: 14),
@@ -289,14 +292,10 @@ class PaymentDetailsDialog extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 16, 12, 10),
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Payment details',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF2B2B2B),
-                    ),
+                    'Details',
+                    style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
                 InkWell(
@@ -304,77 +303,54 @@ class PaymentDetailsDialog extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                   child: const Padding(
                     padding: EdgeInsets.all(4),
-                    child: Icon(
-                      Icons.close,
-                      size: 22,
-                      color: Color(0xFF2B2B2B),
-                    ),
+                    child: Icon(Icons.close, size: 22, color: AppColors.textPrimary),
                   ),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: Color(0xFFE9E9E9)),
+          Divider(height: 1, color: AppColors.border.withValues(alpha: 0.9)),
           Padding(
             padding: const EdgeInsets.all(14),
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFF4F5F7),
+                color: AppColors.inputBackground,
                 borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
               ),
               child: Column(
                 children: [
-                  _detailRow(
-                    title: 'Category Type',
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDDF4E4),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        activity.category,
-                        style: const TextStyle(
-                          color: Color(0xFF1FA34A),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ),
+                  _detailRow(title: 'Type', value: isAdded ? 'Amount Added' : 'Expense'),
                   const SizedBox(height: 12),
-                  _detailRow(title: 'Bank', value: activity.bank),
+                  _detailRow(title: 'Added by', value: entry.addedBy),
                   const SizedBox(height: 12),
-                  _detailRow(title: 'Date', value: activity.date),
-                  const SizedBox(height: 12),
-                  _detailRow(title: 'Paid By', value: activity.paidBy),
+                  _detailRow(title: 'Date', value: '${dateFmt.format(entry.date)} • $time'),
+                  if (isAdded && (entry.bankName ?? '').trim().isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _detailRow(title: 'Source', value: entry.bankName),
+                  ],
+                  if (!isAdded) ...[
+                    const SizedBox(height: 12),
+                    _detailRow(title: 'Paid by', value: entry.paidBy),
+                    const SizedBox(height: 12),
+                    _detailRow(title: 'Category', value: entry.category),
+                  ],
                   const SizedBox(height: 16),
-                  const Divider(height: 1, color: Color(0xFFE0E0E0)),
+                  Divider(height: 1, color: AppColors.border.withValues(alpha: 0.9)),
                   const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      const Text(
-                        'Total Amount Paid:',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF6C727F),
-                        ),
+                      Text(
+                        isAdded ? 'Amount Added:' : 'Amount:',
+                        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        activity.amount,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF2A2A2A),
-                        ),
+                        amountFmt.format(entry.amount),
+                        style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ],
                   ),
@@ -387,49 +363,73 @@ class PaymentDetailsDialog extends StatelessWidget {
     );
   }
 
-  Widget _detailRow({required String title, String? value, Widget? trailing}) {
+  Widget _detailRow({required String title, String? value}) {
     return Row(
       children: [
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(
-              fontSize: 15,
-              color: Color(0xFF6C727F),
-              fontWeight: FontWeight.w500,
+            style: AppTextStyles.bodyRegular.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
-        trailing ??
-            Text(
-              value ?? '',
-              style: const TextStyle(
-                fontSize: 15,
-                color: Color(0xFF2C2C2C),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+        Flexible(
+          child: Text(
+            (value ?? '').toString(),
+            textAlign: TextAlign.right,
+            style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+          ),
+        ),
       ],
     );
   }
 }
 
-class ExpenseActivity {
-  final String title;
-  final String date;
-  final String addedBy;
-  final String paidBy;
-  final String category;
-  final String bank;
-  final String amount;
+class _EmptyState extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Center(
+        child: Column(
+          children: [
+            Icon(
+              Icons.receipt_long_outlined,
+              size: 48,
+              color: AppColors.textSecondary.withValues(alpha: 0.4),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'No entries yet',
+              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 4),
+            Text('Add Amount or submit an expense', style: AppTextStyles.caption),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-  ExpenseActivity({
-    required this.title,
-    required this.date,
-    required this.addedBy,
-    required this.paidBy,
-    required this.category,
-    required this.bank,
-    required this.amount,
-  });
+Map<DateTime, List<ExpenseEntry>> _groupByDay(List<ExpenseEntry> entries) {
+  final map = <DateTime, List<ExpenseEntry>>{};
+  for (final e in entries) {
+    final day = DateTime(e.date.year, e.date.month, e.date.day);
+    (map[day] ??= []).add(e);
+  }
+  return map;
+}
+
+String _formatSectionTitle(DateTime day) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final yesterday = today.subtract(const Duration(days: 1));
+
+  if (day == today) return 'Today';
+  if (day == yesterday) return 'Yesterday';
+
+  return DateFormat('dd MMM yyyy').format(day);
 }

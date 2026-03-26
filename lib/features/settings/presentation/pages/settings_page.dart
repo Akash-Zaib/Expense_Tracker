@@ -101,8 +101,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                     Text(
                       '3 Partners',
-                      style: AppTextStyles.caption
-                          .copyWith(color: AppColors.primary),
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.primary,
+                      ),
                     ),
                   ],
                 ),
@@ -117,12 +118,12 @@ class _SettingsPageState extends State<SettingsPage> {
             border: Border.all(color: AppColors.border),
           ),
           child: IconButton(
-            icon: const Icon(Icons.notifications_outlined,
-                color: AppColors.primary),
-            onPressed: () => Navigator.pushNamed(
-              context,
-              AppRoutes.notifications,
+            icon: const Icon(
+              Icons.notifications_outlined,
+              color: AppColors.primary,
             ),
+            onPressed: () =>
+                Navigator.pushNamed(context, AppRoutes.notifications),
             constraints: const BoxConstraints(),
             padding: const EdgeInsets.all(8),
           ),
@@ -182,10 +183,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      profile?.name ?? 'You',
-                      style: AppTextStyles.title,
-                    ),
+                    Text(profile?.name ?? 'You', style: AppTextStyles.title),
                     const SizedBox(height: 2),
                     Text(
                       profile?.email ?? 'user@alnoortraders.com',
@@ -203,7 +201,8 @@ class _SettingsPageState extends State<SettingsPage> {
                         final result = await showEditProfileDialog(
                           context: context,
                           initialName: profile.name,
-                          initialSignatureColorValue: profile.signatureColorValue,
+                          initialSignatureColorValue:
+                              profile.signatureColorValue,
                         );
                         if (result == null) return;
                         await _store.updateProfile(
@@ -318,16 +317,10 @@ class _SettingsPageState extends State<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: AppTextStyles.bodyMedium,
-                  ),
+                  Text(title, style: AppTextStyles.bodyMedium),
                   if (subtitle != null) ...[
                     const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: AppTextStyles.caption,
-                    ),
+                    Text(subtitle, style: AppTextStyles.caption),
                   ],
                 ],
               ),
@@ -348,17 +341,17 @@ class _SettingsPageState extends State<SettingsPage> {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       child: Row(
         children: [
-          const Icon(Icons.notifications_none_outlined,
-              color: AppColors.textSecondary, size: 22),
+          const Icon(
+            Icons.notifications_none_outlined,
+            color: AppColors.textSecondary,
+            size: 22,
+          ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Notifications',
-                  style: AppTextStyles.bodyMedium,
-                ),
+                Text('Notifications', style: AppTextStyles.bodyMedium),
                 const SizedBox(height: 2),
                 Text(
                   _store.notificationsEnabled ? 'Enabled' : 'Disabled',
@@ -385,9 +378,7 @@ class _SettingsPageState extends State<SettingsPage> {
       onTap: () {
         // TODO: Implement logout
       },
-      borderRadius: const BorderRadius.vertical(
-        bottom: Radius.circular(16),
-      ),
+      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         child: Row(

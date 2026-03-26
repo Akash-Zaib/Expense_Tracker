@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/di/injection_container.dart';
 import '../../../../shared/widgets/custom_button.dart';
 import '../../../../shared/widgets/custom_text_field.dart';
 import '../../domain/entities/expense_entry.dart';
 import 'add_amount_page.dart'; // For BankOption & appBankOptions
+import '../../../banks/presentation/store/banks_store.dart';
 
 /// Category model with name, icon, and color.
 class CategoryOption {
@@ -76,6 +78,14 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
   BankOption? _selectedBank;
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
+  late final BanksStore _banksStore;
+
+  @override
+  void initState() {
+    super.initState();
+    _banksStore = sl<BanksStore>();
+    _banksStore.load();
+  }
 
   @override
   void dispose() {
@@ -146,15 +156,21 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
       return;
     }
 
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
     final entry = ExpenseEntry(
       description: _descriptionController.text.isNotEmpty
           ? _descriptionController.text
           : (_selectedCategory ?? 'Expense'),
       amount: amount,
       category: _selectedCategory ?? 'Miscellaneous Expenses',
-      date: _selectedDate ?? DateTime.now(),
-      time: _selectedTime ?? TimeOfDay.now(),
+      date: _selectedDate ?? today,
+      time: _selectedTime ?? TimeOfDay.fromDateTime(now),
       paidBy: 'You',
+      addedBy: 'You',
+      bankName: _selectedBank?.name,
+      kind: ExpenseEntryKind.expense,
       isCredit: false,
     );
 
@@ -163,6 +179,26 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
 
   // ── Bank Selection Bottom Sheet ──────────────────────────
   void _showBankSelectionSheet() {
+    final banks = <BankOption>[
+      // Always allow cash source
+      ...appBankOptions.where((b) => b.shortCode == 'Cash'),
+      // Only show locked/submitted banks like Add Amount page
+      ..._banksStore.banks.where((b) => b.isSubmitted).map((b) {
+        final short = b.name.trim().isEmpty ? 'BANK' : b.name.trim().split(' ').first;
+        final acc = (b.accountNumber == null || b.accountNumber!.trim().isEmpty)
+            ? null
+            : 'A/C: ${b.accountNumber}';
+        return BankOption(
+          name: b.name,
+          shortCode: short,
+          icon: Icons.account_balance,
+          iconBgColor: const Color(0xFFE3F2FD),
+          iconColor: AppColors.primary,
+          subtitle: acc,
+        );
+      }),
+    ];
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -172,7 +208,7 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
       ),
       builder: (ctx) {
         return _BankSelectionSheet(
-          banks: appBankOptions,
+          banks: banks,
           selectedBank: _selectedBank,
           onSelected: (bank) {
             setState(() => _selectedBank = bank);
@@ -482,7 +518,7 @@ class _BankSelectionSheet extends StatelessWidget {
             Flexible(
               child: ListView.separated(
                 shrinkWrap: true,
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.fromLTRB(0, 8, 0, 72),
                 itemCount: banks.length,
                 separatorBuilder: (_, __) =>
                     const Divider(
@@ -511,6 +547,13 @@ class _BankSelectionSheet extends StatelessWidget {
                       style: AppTextStyles.bodyMedium,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    subtitle: bank.subtitle == null
+                        ? null
+                        : Text(
+                            bank.subtitle!,
+                            style: AppTextStyles.caption,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                     trailing: Container(
                       width: 22,
                       height: 22,

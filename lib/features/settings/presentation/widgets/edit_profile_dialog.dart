@@ -115,15 +115,20 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
                 prefixIcon: const Icon(Icons.person_outline),
                 filled: true,
                 fillColor: Colors.white,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 14,
+                ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: const BorderSide(color: AppColors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: AppColors.primary, width: 1.2),
+                  borderSide: const BorderSide(
+                    color: AppColors.primary,
+                    width: 1.2,
+                  ),
                 ),
               ),
             ),
@@ -152,7 +157,9 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
                       color: Color(value),
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: isSelected ? Colors.black.withValues(alpha: 0.15) : Colors.transparent,
+                        color: isSelected
+                            ? Colors.black.withValues(alpha: 0.15)
+                            : Colors.transparent,
                         width: 2,
                       ),
                     ),
@@ -212,4 +219,3 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
     );
   }
 }
-

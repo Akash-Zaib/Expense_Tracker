@@ -10,6 +10,7 @@ import '../../../../core/di/injection_container.dart';
 import '../../../analytics/presentation/pages/analytics_page.dart';
 import '../../../wallet/presentation/pages/wallet_page.dart';
 import '../../domain/entities/expense_entry.dart';
+import 'add_amount_page.dart';
 import '../store/transactions_store.dart';
 
 class HomePage extends StatefulWidget {
@@ -25,7 +26,8 @@ class _HomePageState extends State<HomePage> {
 
   // Dummy data – will be replaced with Firebase data later
   double _availableBalance = 22450;
-  final String _dateRange = '1 Feb 2026 - 30 Feb 2026';
+  DateTime? _selectedDate;
+  String _dateRange = '1 Feb 2026 - 30 Feb 2026';
   final double _myExpenses = 12000;
   final double _badarExpenses = 12000;
   final double _logicWormsExpenses = 12000;
@@ -89,6 +91,7 @@ class _HomePageState extends State<HomePage> {
         entries: _entries,
         onAddCash: _navigateToAddAmount,
         onSubmitExpense: _navigateToSubmitExpense,
+        onPickDateRange: _pickDateRange,
       ),
       const AnalyticsPage(), // TODO: Replace with actual analytics page
       const WalletPage(), // TODO: Replace with actual wallet page
@@ -107,14 +110,67 @@ class _HomePageState extends State<HomePage> {
       entries: _entries,
       onAddCash: _navigateToAddAmount,
       onSubmitExpense: _navigateToSubmitExpense,
+      onPickDateRange: _pickDateRange,
     );
+  }
+
+  Future<void> _pickDateRange() async {
+    final initial = _selectedDate ?? DateTime.now();
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.primary,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: AppColors.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked == null) return;
+    if (!mounted) return;
+
+    final fmt = DateFormat('d MMM yyyy');
+    setState(() {
+      _selectedDate = picked;
+      _dateRange = fmt.format(picked);
+      _rebuildHomeContent();
+    });
   }
 
   Future<void> _navigateToAddAmount() async {
     final result = await Navigator.pushNamed(context, AppRoutes.addAmount);
-    if (result != null && result is double) {
+    if (result != null && result is AddAmountResult) {
       setState(() {
-        _availableBalance += result;
+        _availableBalance += result.amount;
+
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final entry = ExpenseEntry(
+          description: result.description,
+          amount: result.amount,
+          category: 'Amount Added',
+          date: today,
+          time: TimeOfDay.fromDateTime(now),
+          paidBy: result.bankName ?? 'By Cash',
+          addedBy: 'You',
+          bankName: result.bankName,
+          kind: ExpenseEntryKind.amountAdded,
+          isCredit: true,
+        );
+
+        _entries.insert(0, entry);
+        _transactionsStore.add(entry);
         _rebuildHomeContent();
       });
     }
@@ -214,6 +270,7 @@ class _HomeContent extends StatelessWidget {
   final List<ExpenseEntry> entries;
   final VoidCallback onAddCash;
   final VoidCallback onSubmitExpense;
+  final VoidCallback onPickDateRange;
 
   const _HomeContent({
     required this.availableBalance,
@@ -225,6 +282,7 @@ class _HomeContent extends StatelessWidget {
     required this.entries,
     required this.onAddCash,
     required this.onSubmitExpense,
+    required this.onPickDateRange,
   });
 
   @override
@@ -262,26 +320,6 @@ class _HomeContent extends StatelessWidget {
                     backgroundColor: AppColors.primary,
                     radius: 20,
                     child: const Icon(Icons.group, color: Colors.white),
-                  ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.greenDark,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 1.5),
-                      ),
-                      padding: const EdgeInsets.all(2),
-                      child: const Text(
-                        '3',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
                   ),
                 ],
               ),
@@ -361,16 +399,20 @@ class _HomeContent extends StatelessWidget {
                   ],
                 ),
               ),
-              Container(
-                decoration: const BoxDecoration(
-                  color: AppColors.blueLight,
-                  shape: BoxShape.circle,
-                ),
-                padding: const EdgeInsets.all(8),
-                child: const Icon(
-                  Icons.calendar_month_outlined,
-                  color: AppColors.primary,
-                  size: 20,
+              InkWell(
+                onTap: onPickDateRange,
+                borderRadius: BorderRadius.circular(999),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: AppColors.blueLight,
+                    shape: BoxShape.circle,
+                  ),
+                  padding: const EdgeInsets.all(8),
+                  child: const Icon(
+                    Icons.calendar_month_outlined,
+                    color: AppColors.primary,
+                    size: 20,
+                  ),
                 ),
               ),
             ],
