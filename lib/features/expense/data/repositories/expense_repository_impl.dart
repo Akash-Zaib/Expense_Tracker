@@ -19,10 +19,66 @@ class ExpenseRepositoryImpl implements ExpenseRepository {
   }
 
   @override
+  Future<void> addTransactionForUid({
+    required String uid,
+    required ExpenseEntry entry,
+  }) {
+    return _remote.addTransactionForUid(
+      uid: uid,
+      entry: ExpenseEntryModel.fromEntity(entry),
+    );
+  }
+
+  @override
   Future<void> updatePaidTo({
     required String transactionId,
     required String paidTo,
   }) {
     return _remote.updatePaidTo(transactionId: transactionId, paidTo: paidTo);
+  }
+
+  @override
+  Future<void> updateAmount({
+    required String ownerUid,
+    required String transactionId,
+    required double amount,
+  }) {
+    return _remote.updateAmount(
+      ownerUid: ownerUid,
+      transactionId: transactionId,
+      amount: amount,
+    );
+  }
+
+  @override
+  Future<void> splitAndAssign({
+    required String sourceOwnerUid,
+    required String sourceTransactionId,
+    required double sourceNewAmount,
+    required String targetUid,
+    required ExpenseEntry targetEntry,
+  }) {
+    return _remote.splitAndAssign(
+      sourceOwnerUid: sourceOwnerUid,
+      sourceTransactionId: sourceTransactionId,
+      sourceNewAmount: sourceNewAmount,
+      targetUid: targetUid,
+      targetEntry: ExpenseEntryModel.fromEntity(targetEntry),
+    );
+  }
+
+  @override
+  Future<void> moveToUser({
+    required String sourceOwnerUid,
+    required String sourceTransactionId,
+    required String targetUid,
+    required ExpenseEntry targetEntry,
+  }) {
+    return _remote.moveToUser(
+      sourceOwnerUid: sourceOwnerUid,
+      sourceTransactionId: sourceTransactionId,
+      targetUid: targetUid,
+      targetEntry: ExpenseEntryModel.fromEntity(targetEntry),
+    );
   }
 }

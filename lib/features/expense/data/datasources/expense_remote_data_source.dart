@@ -5,9 +5,31 @@ import '../models/expense_entry_model.dart';
 abstract class ExpenseRemoteDataSource {
   Future<List<ExpenseEntryModel>> getTransactions({int limit = 200});
   Future<void> addTransaction(ExpenseEntryModel entry);
+  Future<void> addTransactionForUid({
+    required String uid,
+    required ExpenseEntryModel entry,
+  });
+  Future<void> splitAndAssign({
+    required String sourceOwnerUid,
+    required String sourceTransactionId,
+    required double sourceNewAmount,
+    required String targetUid,
+    required ExpenseEntryModel targetEntry,
+  });
+  Future<void> moveToUser({
+    required String sourceOwnerUid,
+    required String sourceTransactionId,
+    required String targetUid,
+    required ExpenseEntryModel targetEntry,
+  });
   Future<void> updatePaidTo({
     required String transactionId,
     required String paidTo,
+  });
+  Future<void> updateAmount({
+    required String ownerUid,
+    required String transactionId,
+    required double amount,
   });
 }
 
@@ -53,6 +75,18 @@ class ExpenseRemoteDataSourceImpl implements ExpenseRemoteDataSource {
   }
 
   @override
+  Future<void> addTransactionForUid({
+    required String uid,
+    required ExpenseEntryModel entry,
+  }) {
+    return _userScope.firestore
+        .collection('users')
+        .doc(uid)
+        .collection('transactions')
+        .add(entry.toFirestore());
+  }
+
+  @override
   Future<void> updatePaidTo({
     required String transactionId,
     required String paidTo,
@@ -69,5 +103,74 @@ class ExpenseRemoteDataSourceImpl implements ExpenseRemoteDataSource {
       return;
     }
     throw StateError('Transaction not found for reassignment.');
+  }
+
+  @override
+  Future<void> updateAmount({
+    required String ownerUid,
+    required String transactionId,
+    required double amount,
+  }) async {
+    await _userScope.firestore
+        .collection('users')
+        .doc(ownerUid)
+        .collection('transactions')
+        .doc(transactionId)
+        .update({
+          'amount': amount,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+  }
+
+  @override
+  Future<void> splitAndAssign({
+    required String sourceOwnerUid,
+    required String sourceTransactionId,
+    required double sourceNewAmount,
+    required String targetUid,
+    required ExpenseEntryModel targetEntry,
+  }) async {
+    final sourceRef = _userScope.firestore
+        .collection('users')
+        .doc(sourceOwnerUid)
+        .collection('transactions')
+        .doc(sourceTransactionId);
+    final targetRef = _userScope.firestore
+        .collection('users')
+        .doc(targetUid)
+        .collection('transactions')
+        .doc(); // new activity
+
+    final batch = _userScope.firestore.batch();
+    batch.update(sourceRef, {
+      'amount': sourceNewAmount,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    batch.set(targetRef, targetEntry.toFirestore());
+    await batch.commit();
+  }
+
+  @override
+  Future<void> moveToUser({
+    required String sourceOwnerUid,
+    required String sourceTransactionId,
+    required String targetUid,
+    required ExpenseEntryModel targetEntry,
+  }) async {
+    final sourceRef = _userScope.firestore
+        .collection('users')
+        .doc(sourceOwnerUid)
+        .collection('transactions')
+        .doc(sourceTransactionId);
+    final targetRef = _userScope.firestore
+        .collection('users')
+        .doc(targetUid)
+        .collection('transactions')
+        .doc(); // new activity
+
+    final batch = _userScope.firestore.batch();
+    batch.delete(sourceRef);
+    batch.set(targetRef, targetEntry.toFirestore());
+    await batch.commit();
   }
 }

@@ -25,8 +25,12 @@ import '../../features/expense/data/datasources/expense_remote_data_source.dart'
 import '../../features/expense/data/repositories/expense_repository_impl.dart';
 import '../../features/expense/domain/repositories/expense_repository.dart';
 import '../../features/expense/domain/usecases/add_transaction.dart';
+import '../../features/expense/domain/usecases/add_transaction_for_uid.dart';
 import '../../features/expense/domain/usecases/get_transactions.dart';
+import '../../features/expense/domain/usecases/move_transaction_to_user.dart';
+import '../../features/expense/domain/usecases/split_and_assign.dart';
 import '../../features/expense/domain/usecases/update_paid_to.dart';
+import '../../features/expense/domain/usecases/update_transaction_amount.dart';
 import '../../features/expense/presentation/store/transactions_store.dart';
 import '../../features/banks/data/datasources/banks_local_data_source.dart';
 import '../../features/banks/data/datasources/banks_remote_data_source.dart';
@@ -99,12 +103,18 @@ Future<void> init() async {
   );
   sl.registerLazySingleton(() => GetTransactions(sl()));
   sl.registerLazySingleton(() => AddTransaction(sl()));
+  sl.registerLazySingleton(() => AddTransactionForUid(sl()));
   sl.registerLazySingleton(() => UpdatePaidTo(sl()));
+  sl.registerLazySingleton(() => UpdateTransactionAmount(sl()));
+  sl.registerLazySingleton(() => SplitAndAssign(sl()));
+  sl.registerLazySingleton(() => MoveTransactionToUser(sl()));
   sl.registerLazySingleton<TransactionsStore>(
     () => TransactionsStore(
       getTransactions: sl(),
       addTransaction: sl(),
       updatePaidTo: sl(),
+      splitAndAssign: sl(),
+      moveTransactionToUser: sl(),
     ),
   );
 

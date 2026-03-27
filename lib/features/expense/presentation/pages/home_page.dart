@@ -33,6 +33,7 @@ class _HomePageState extends State<HomePage> {
   late final ValueNotifier<String> _currentUserNameNotifier;
   late final ValueNotifier<Map<String, int>> _userColorByNameNotifier;
   late final ValueNotifier<List<String>> _userNamesNotifier;
+  late final ValueNotifier<Map<String, String>> _uidByNormalizedNameNotifier;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _usersSubscription;
   String _currentUserUid = '';
 
@@ -49,6 +50,7 @@ class _HomePageState extends State<HomePage> {
     _currentUserNameNotifier = ValueNotifier<String>('User');
     _userColorByNameNotifier = ValueNotifier<Map<String, int>>(const {});
     _userNamesNotifier = ValueNotifier<List<String>>(const []);
+    _uidByNormalizedNameNotifier = ValueNotifier<Map<String, String>>(const {});
     _currentUserUid = _currentUserContext.uid;
     _transactionsStore.load();
     _loadIdentityAndColors();
@@ -76,6 +78,7 @@ class _HomePageState extends State<HomePage> {
     _currentUserNameNotifier.dispose();
     _userColorByNameNotifier.dispose();
     _userNamesNotifier.dispose();
+    _uidByNormalizedNameNotifier.dispose();
     super.dispose();
   }
 
@@ -87,6 +90,7 @@ class _HomePageState extends State<HomePage> {
         .listen((snapshot) {
           final map = <String, int>{};
           final names = <String>[];
+          final uidByName = <String, String>{};
           for (final doc in snapshot.docs) {
             final data = doc.data();
             final name = (data['name'] as String?)?.trim();
@@ -95,11 +99,14 @@ class _HomePageState extends State<HomePage> {
             if (name == null || name.isEmpty || signatureColorValue == null) {
               continue;
             }
-            map[name.toLowerCase().trim()] = signatureColorValue;
+            final normalizedName = name.toLowerCase().trim();
+            map[normalizedName] = signatureColorValue;
+            uidByName[normalizedName] = doc.id;
             names.add(name);
           }
           _userColorByNameNotifier.value = map;
           _userNamesNotifier.value = names;
+          _uidByNormalizedNameNotifier.value = uidByName;
         });
   }
 
@@ -111,12 +118,14 @@ class _HomePageState extends State<HomePage> {
         _currentUserNameNotifier,
         _userColorByNameNotifier,
         _userNamesNotifier,
+        _uidByNormalizedNameNotifier,
       ]),
       builder: (context, _) {
         final selectedDate = _selectedDateNotifier.value;
         final currentUserName = _currentUserNameNotifier.value;
         final userColorByName = _userColorByNameNotifier.value;
         final allUserNames = _userNamesNotifier.value;
+        final uidByNormalizedName = _uidByNormalizedNameNotifier.value;
         final dateRange = DateFormat('d MMM yyyy').format(selectedDate);
         final allEntries = _transactionsStore.transactions;
         final entries =
@@ -145,30 +154,91 @@ class _HomePageState extends State<HomePage> {
               runningTotal + (e.isCredit ? e.amount : -e.amount),
         );
 
-        final uniqueNames = <String>{
-          currentUserName,
-          ...allUserNames.where((e) => e.trim().isNotEmpty),
-          ...entries
-              .map((e) => e.paidTo.trim().isEmpty ? e.ownerName : e.paidTo)
-              .where((e) => e.trim().isNotEmpty),
-        }.toList(growable: false);
-        uniqueNames.sort((a, b) {
-          if (a.toLowerCase() == currentUserName.toLowerCase()) return -1;
-          if (b.toLowerCase() == currentUserName.toLowerCase()) return 1;
-          return a.toLowerCase().compareTo(b.toLowerCase());
-        });
-        final displayUsers = uniqueNames.take(4).toList(growable: false);
+        // Normalize names to avoid duplicate tabs for the same user
+        // (e.g. "Badar Khan" vs "badar khan ").
+        final currentNormalized = currentUserName.toLowerCase().trim();
+        final canonicalByNormalized = <String, String>{
+          currentNormalized: currentUserName,
+        };
 
-        final expenseByTarget = <String, double>{};
-        for (final e in entries.where((t) => !t.isCredit)) {
-          final target = (e.paidTo.trim().isEmpty ? e.ownerName : e.paidTo)
-              .toLowerCase()
-              .trim();
-          expenseByTarget[target] = (expenseByTarget[target] ?? 0) + e.amount;
+        void addCanonical(String name) {
+          final trimmed = name.trim();
+          if (trimmed.isEmpty) return;
+          final normalized = trimmed.toLowerCase();
+          if (normalized == currentNormalized) {
+            canonicalByNormalized[normalized] = currentUserName;
+            return;
+          }
+          canonicalByNormalized.putIfAbsent(normalized, () => trimmed);
         }
+
+        for (final name in allUserNames) {
+          addCanonical(name);
+        }
+        for (final entry in entries) {
+          addCanonical(
+            entry.paidTo.trim().isEmpty ? entry.ownerName : entry.paidTo,
+          );
+        }
+
+        // Build a set of known aliases for current user from transaction data.
+        // This prevents duplicate cards when same user has name variants.
+        final currentUserAliases = <String>{currentNormalized};
+        for (final e in allEntries.where((e) => e.ownerUid == _currentUserUid)) {
+          final ownerAlias = e.ownerName.trim().toLowerCase();
+          if (ownerAlias.isNotEmpty) currentUserAliases.add(ownerAlias);
+          final paidByAlias = e.paidBy.trim().toLowerCase();
+          if (paidByAlias.isNotEmpty) currentUserAliases.add(paidByAlias);
+          final addedByAlias = e.addedBy.trim().toLowerCase();
+          if (addedByAlias.isNotEmpty) currentUserAliases.add(addedByAlias);
+        }
+
+        // Show one "My Personal Expenses" card for current user,
+        // plus other users' cards (excluding current user name).
+        final authOtherUsers = allUserNames
+            .where((name) {
+              final normalized = name.toLowerCase().trim();
+              final uid = uidByNormalizedName[normalized];
+              if (uid == null || uid.isEmpty) return false;
+              return uid != _currentUserUid;
+            })
+            .toList(growable: false)
+          ..sort(
+            (a, b) =>
+                a.toLowerCase().trim().compareTo(b.toLowerCase().trim()),
+          );
+
+        final displayUsers = <String>[currentUserName, ...authOtherUsers];
+
+        // "Assign/Split To" options must come ONLY from authenticated users
+        // (Firestore `users` docs), not historical names found in transactions.
+        final paidToTargets = allUserNames
+            .where((name) {
+              final normalized = name.toLowerCase().trim();
+              final uid = uidByNormalizedName[normalized];
+              if (uid == null || uid.isEmpty) return false;
+              return uid != _currentUserUid;
+            })
+            .toList(growable: false)
+          ..sort((a, b) => a.toLowerCase().trim().compareTo(b.toLowerCase().trim()));
+
+        final expenseByOwnerUid = <String, double>{};
+        for (final e
+            in entries.where((t) => !t.isCredit && t.kind == ExpenseEntryKind.expense)) {
+          final uid = e.ownerUid.trim();
+          if (uid.isEmpty) continue;
+          expenseByOwnerUid[uid] = (expenseByOwnerUid[uid] ?? 0) + e.amount;
+        }
+
+        final myExpenseAmount = entries
+            .where((e) => e.ownerUid == _currentUserUid)
+            .where((e) => e.kind == ExpenseEntryKind.expense)
+            .where((e) => !e.isCredit)
+            .fold<double>(0, (runningTotal, e) => runningTotal + e.amount);
         final cards = displayUsers
             .map((name) {
               final normalized = name.toLowerCase().trim();
+              final userUid = uidByNormalizedName[normalized];
               final cardEntries =
                   normalized == currentUserName.toLowerCase().trim()
                   ? allEntries
@@ -178,11 +248,7 @@ class _HomePageState extends State<HomePage> {
                   : allEntries
                         .where((e) => e.kind == ExpenseEntryKind.expense)
                         .where((e) {
-                          final target =
-                              (e.paidTo.trim().isEmpty ? e.ownerName : e.paidTo)
-                                  .toLowerCase()
-                                  .trim();
-                          return target == normalized;
+                          return e.ownerUid.trim() == (userUid ?? '');
                         })
                         .toList(growable: false);
               return _ExpenseCardData(
@@ -190,7 +256,9 @@ class _HomePageState extends State<HomePage> {
                     ? 'My Personal Expenses'
                     : "$name's Expenses",
                 userName: name,
-                amount: expenseByTarget[normalized] ?? 0,
+                amount: normalized == currentUserName.toLowerCase().trim()
+                    ? myExpenseAmount
+                    : (userUid == null ? 0 : (expenseByOwnerUid[userUid] ?? 0)),
                 onTap: () {
                   Navigator.push(
                     context,
@@ -215,7 +283,7 @@ class _HomePageState extends State<HomePage> {
           availableBalance: availableBalance,
           dateRange: dateRange,
           expenseCards: cards,
-          paidToTargets: displayUsers,
+          paidToTargets: paidToTargets,
           currentUserUid: _currentUserUid,
           userColorByName: userColorByName,
           entries: entries,
@@ -223,22 +291,96 @@ class _HomePageState extends State<HomePage> {
           onSubmitExpense: _navigateToSubmitExpense,
           onPickDateRange: _pickDateRange,
           onReassignPaidTo: _reassignPaidTo,
+          onSplitAssign: (entry) => _showSplitAssignSheet(
+            entry: entry,
+            candidates: paidToTargets,
+            uidByNormalizedName: uidByNormalizedName,
+            currentUserName: currentUserName,
+          ),
         );
       },
     );
   }
 
+  Future<void> _showSplitAssignSheet({
+    required ExpenseEntry entry,
+    required List<String> candidates,
+    required Map<String, String> uidByNormalizedName,
+    required String currentUserName,
+  }) async {
+    if (entry.id.isEmpty) return;
+    if (candidates.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No other users found.')),
+      );
+      return;
+    }
+
+    final selected = await showModalBottomSheet<_SplitAssignResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _SplitAssignSheet(
+        entry: entry,
+        candidates: candidates,
+      ),
+    );
+
+    if (selected == null) return;
+    final normalized = selected.targetName.toLowerCase().trim();
+    final targetUid = uidByNormalizedName[normalized];
+    if (targetUid == null || targetUid.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selected user is not authenticated.')),
+      );
+      return;
+    }
+
+    await _transactionsStore.splitAndAssign(
+      entry: entry,
+      targetUid: targetUid,
+      targetName: selected.targetName,
+      amount: selected.amount,
+      currentUserName: currentUserName,
+      currentUserUid: _currentUserUid,
+    );
+
+    if (!mounted) return;
+    if (_transactionsStore.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to split: ${_transactionsStore.error}')),
+      );
+    }
+  }
+
   Future<void> _reassignPaidTo(ExpenseEntry entry, String paidTo) async {
     if (entry.id.isEmpty) return;
-    await _transactionsStore.reassignPaidTo(
-      transactionId: entry.id,
-      paidTo: paidTo,
+    // "Assign To" should move the full amount to selected user:
+    // decrease current user's expense and increase selected user's expense.
+    final normalized = paidTo.toLowerCase().trim();
+    final uidByNormalizedName = _uidByNormalizedNameNotifier.value;
+    final targetUid = uidByNormalizedName[normalized];
+    if (targetUid == null || targetUid.isEmpty || targetUid == _currentUserUid) {
+      return;
+    }
+
+    await _transactionsStore.moveFullAmountToUser(
+      entry: entry,
+      targetUid: targetUid,
+      targetName: paidTo,
+      currentUserName: _currentUserNameNotifier.value,
+      currentUserUid: _currentUserUid,
     );
     if (!mounted) return;
     if (_transactionsStore.error != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to update target: ${_transactionsStore.error}'),
+          content: Text('Failed to assign: ${_transactionsStore.error}'),
         ),
       );
     }
@@ -442,6 +584,7 @@ class _HomeContent extends StatelessWidget {
   final String dateRange;
   final List<_ExpenseCardData> expenseCards;
   final List<String> paidToTargets;
+  final Future<void> Function(ExpenseEntry entry) onSplitAssign;
   final Map<String, int> userColorByName;
   final List<ExpenseEntry> entries;
   final VoidCallback onAddCash;
@@ -463,6 +606,7 @@ class _HomeContent extends StatelessWidget {
     required this.onSubmitExpense,
     required this.onPickDateRange,
     required this.onReassignPaidTo,
+    required this.onSplitAssign,
   });
 
   @override
@@ -978,11 +1122,17 @@ class _HomeContent extends StatelessWidget {
                         PopupMenuButton<String>(
                           icon: const Icon(Icons.more_vert, size: 18),
                           onSelected: (value) async {
-                            if (value == 'assign_to') {
+                            if (value == 'split_assign') {
+                              await onSplitAssign(entry);
+                            } else if (value == 'assign_to') {
                               await _showReassignPaidToSheet(context, entry);
                             }
                           },
                           itemBuilder: (context) => const [
+                            PopupMenuItem<String>(
+                              value: 'split_assign',
+                              child: Text('Split & Assign'),
+                            ),
                             PopupMenuItem<String>(
                               value: 'assign_to',
                               child: Text('Assign To'),
@@ -1115,6 +1265,138 @@ class _ExpenseCardData {
     required this.amount,
     this.onTap,
   });
+}
+
+class _SplitAssignResult {
+  final String targetName;
+  final double amount;
+
+  const _SplitAssignResult({required this.targetName, required this.amount});
+}
+
+class _SplitAssignSheet extends StatefulWidget {
+  final ExpenseEntry entry;
+  final List<String> candidates;
+
+  const _SplitAssignSheet({
+    required this.entry,
+    required this.candidates,
+  });
+
+  @override
+  State<_SplitAssignSheet> createState() => _SplitAssignSheetState();
+}
+
+class _SplitAssignSheetState extends State<_SplitAssignSheet> {
+  late String _selectedName;
+  final _amountController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedName = widget.candidates.first;
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxAmount = widget.entry.amount;
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 12, 16, 16 + bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Split & Assign', style: AppTextStyles.heading3),
+            ),
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                widget.entry.description,
+                style: AppTextStyles.caption,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _selectedName,
+              decoration: const InputDecoration(
+                labelText: 'Assign to',
+                border: OutlineInputBorder(),
+              ),
+              items: widget.candidates
+                  .map(
+                    (name) => DropdownMenuItem<String>(
+                      value: name,
+                      child: Text(name),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: (v) => setState(() => _selectedName = v ?? _selectedName),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _amountController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'Amount to assign',
+                helperText: 'Must be > 0 and < ${maxAmount.toStringAsFixed(0)}',
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  final raw = _amountController.text.trim();
+                  final amount = double.tryParse(raw) ?? 0;
+                  if (amount <= 0 || amount >= maxAmount) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Enter a valid amount.')),
+                    );
+                    return;
+                  }
+                  Navigator.pop(
+                    context,
+                    _SplitAssignResult(targetName: _selectedName, amount: amount),
+                  );
+                },
+                child: const Text('Split & Assign'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _ActivityDetailsDialog extends StatelessWidget {
