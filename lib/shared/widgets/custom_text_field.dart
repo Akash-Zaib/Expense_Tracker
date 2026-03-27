@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/constants/app_text_styles.dart';
 
 class CustomTextField extends StatelessWidget {
@@ -10,6 +11,7 @@ class CustomTextField extends StatelessWidget {
   final Widget? prefixIcon;
   final Widget? suffixIcon;
   final int maxLines;
+  final List<TextInputFormatter>? inputFormatters;
 
   const CustomTextField({
     Key? key,
@@ -21,6 +23,7 @@ class CustomTextField extends StatelessWidget {
     this.prefixIcon,
     this.suffixIcon,
     this.maxLines = 1,
+    this.inputFormatters,
   }) : super(key: key);
 
   @override
@@ -31,6 +34,7 @@ class CustomTextField extends StatelessWidget {
       obscureText: isPassword,
       validator: validator,
       maxLines: maxLines,
+      inputFormatters: inputFormatters,
       style: AppTextStyles.bodyMedium,
       decoration: InputDecoration(
         hintText: hintText,

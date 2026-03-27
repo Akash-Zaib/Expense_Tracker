@@ -49,8 +49,8 @@ class _WalletPageState extends State<WalletPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeader(),
-              const SizedBox(height: 18),
-              _buildBalanceCard(totalSpent: totalSpent, totalReceived: totalReceived),
+              // const SizedBox(height: 18),
+              // _buildBalanceCard(totalSpent: totalSpent, totalReceived: totalReceived),
               const SizedBox(height: 16),
               _buildQuickActions(),
               const SizedBox(height: 16),
@@ -73,7 +73,10 @@ class _WalletPageState extends State<WalletPage> {
               CircleAvatar(
                 backgroundColor: AppColors.primary,
                 radius: 20,
-                child: const Icon(Icons.account_balance_wallet, color: Colors.white),
+                child: const Icon(
+                  Icons.account_balance_wallet,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(width: 12),
               Flexible(
@@ -83,7 +86,9 @@ class _WalletPageState extends State<WalletPage> {
                     Text('Wallet', style: AppTextStyles.title),
                     Text(
                       'Balance & accounts',
-                      style: AppTextStyles.caption.copyWith(color: AppColors.primary),
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.primary,
+                      ),
                     ),
                   ],
                 ),
@@ -91,19 +96,19 @@ class _WalletPageState extends State<WalletPage> {
             ],
           ),
         ),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.border),
-          ),
-          child: IconButton(
-            icon: const Icon(Icons.more_horiz, color: AppColors.primary),
-            onPressed: () {},
-            constraints: const BoxConstraints(),
-            padding: const EdgeInsets.all(8),
-          ),
-        ),
+        // Container(
+        //   decoration: BoxDecoration(
+        //     color: Colors.white,
+        //     shape: BoxShape.circle,
+        //     border: Border.all(color: AppColors.border),
+        //   ),
+        //   child: IconButton(
+        //     icon: const Icon(Icons.more_horiz, color: AppColors.primary),
+        //     onPressed: () {},
+        //     constraints: const BoxConstraints(),
+        //     padding: const EdgeInsets.all(8),
+        //   ),
+        // ),
       ],
     );
   }
@@ -133,7 +138,9 @@ class _WalletPageState extends State<WalletPage> {
         children: [
           Text(
             'Net Balance',
-            style: AppTextStyles.caption.copyWith(color: Colors.white.withValues(alpha: 0.9)),
+            style: AppTextStyles.caption.copyWith(
+              color: Colors.white.withValues(alpha: 0.9),
+            ),
           ),
           const SizedBox(height: 8),
           Row(
@@ -153,7 +160,10 @@ class _WalletPageState extends State<WalletPage> {
               ),
               const SizedBox(width: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(999),
@@ -328,9 +338,7 @@ class _WalletPageState extends State<WalletPage> {
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             child: Row(
               children: [
-                Expanded(
-                  child: Text('My Banks', style: AppTextStyles.title),
-                ),
+                Expanded(child: Text('My Banks', style: AppTextStyles.title)),
                 TextButton(
                   onPressed: hasUnsubmitted
                       ? () async {
@@ -338,7 +346,9 @@ class _WalletPageState extends State<WalletPage> {
                           await _banksStore.submitAll();
                           if (!mounted) return;
                           messenger.showSnackBar(
-                            const SnackBar(content: Text('Submitted. Banks are now locked.')),
+                            const SnackBar(
+                              content: Text('Submitted. Banks are now locked.'),
+                            ),
                           );
                         }
                       : null,
@@ -351,13 +361,20 @@ class _WalletPageState extends State<WalletPage> {
           if (banks.isEmpty)
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text('No banks yet. Tap “Add Bank” to create one.', style: AppTextStyles.caption),
+              child: Text(
+                'No banks yet. Tap “Add Bank” to create one.',
+                style: AppTextStyles.caption,
+              ),
             )
           else
-            ...banks.map((b) => _BankRow(
-                  bank: b,
-                  onDelete: b.isSubmitted ? null : () => _banksStore.removeById(b.id),
-                )),
+            ...banks.map(
+              (b) => _BankRow(
+                bank: b,
+                onDelete: b.isSubmitted
+                    ? null
+                    : () => _banksStore.removeById(b.id),
+              ),
+            ),
         ],
       ),
     );
@@ -426,9 +443,7 @@ class _AddBankBottomSheetState extends State<_AddBankBottomSheet> {
           children: [
             Row(
               children: [
-                Expanded(
-                  child: Text('Add Bank', style: AppTextStyles.title),
-                ),
+                Expanded(child: Text('Add Bank', style: AppTextStyles.title)),
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
                   icon: const Icon(Icons.close),
@@ -482,14 +497,12 @@ class _BankRow extends StatelessWidget {
   final Bank bank;
   final VoidCallback? onDelete;
 
-  const _BankRow({
-    required this.bank,
-    this.onDelete,
-  });
+  const _BankRow({required this.bank, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
-    final subtitle = bank.accountNumber == null || bank.accountNumber!.trim().isEmpty
+    final subtitle =
+        bank.accountNumber == null || bank.accountNumber!.trim().isEmpty
         ? null
         : 'A/C: ${bank.accountNumber}';
 
@@ -506,7 +519,11 @@ class _BankRow extends StatelessWidget {
                   color: AppColors.primary.withValues(alpha: 0.10),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.account_balance, color: AppColors.primary, size: 18),
+                child: Icon(
+                  Icons.account_balance,
+                  color: AppColors.primary,
+                  size: 18,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(

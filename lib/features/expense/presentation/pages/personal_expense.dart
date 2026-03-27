@@ -8,7 +8,18 @@ import '../../domain/entities/expense_entry.dart';
 import '../store/transactions_store.dart';
 
 class PersonalExpensesScreen extends StatelessWidget {
-  const PersonalExpensesScreen({super.key});
+  final List<ExpenseEntry>? entries;
+  final String title;
+  final bool showOnlyExpenses;
+  final bool showOnlyAmountAdded;
+
+  const PersonalExpensesScreen({
+    super.key,
+    this.entries,
+    this.title = 'Personal Expenses',
+    this.showOnlyExpenses = false,
+    this.showOnlyAmountAdded = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -24,13 +35,23 @@ class PersonalExpensesScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text('Personal Expenses', style: AppTextStyles.title),
+        title: Text(title, style: AppTextStyles.title),
         centerTitle: true,
       ),
       body: AnimatedBuilder(
         animation: store,
         builder: (context, _) {
-          final items = store.transactions.toList()
+          final source = entries ?? store.transactions;
+          final filtered = showOnlyAmountAdded
+              ? source
+                  .where((e) => e.kind == ExpenseEntryKind.amountAdded)
+                  .toList()
+              : (showOnlyExpenses
+                    ? source
+                        .where((e) => e.kind == ExpenseEntryKind.expense)
+                        .toList()
+                    : source.toList());
+          final items = filtered
             ..sort((a, b) {
               final dateCmp = b.date.compareTo(a.date);
               if (dateCmp != 0) return dateCmp;
@@ -50,8 +71,10 @@ class PersonalExpensesScreen extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
             children: [
-              _TotalCard(totalAddedAmount: addedTotal),
-              const SizedBox(height: 16),
+              if (!showOnlyExpenses || showOnlyAmountAdded) ...[
+                _TotalCard(totalAddedAmount: addedTotal),
+                const SizedBox(height: 16),
+              ],
               if (items.isEmpty)
                 _EmptyState()
               else

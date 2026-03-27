@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/di/injection_container.dart';
@@ -188,6 +189,10 @@ class _AddAmountPageState extends State<AddAmountPage> {
                 hintText: 'Amount You Have',
                 keyboardType: TextInputType.number,
                 controller: _amountController,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(10),
+                ],
                 prefixIcon: const Icon(
                   Icons.monetization_on_outlined,
                   color: AppColors.textSecondary,

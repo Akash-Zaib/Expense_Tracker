@@ -17,6 +17,7 @@ Future<EditProfileResult?> showEditProfileDialog({
   required BuildContext context,
   required String initialName,
   required int initialSignatureColorValue,
+  Set<int> unavailableColorValues = const {},
 }) {
   return showDialog<EditProfileResult>(
     context: context,
@@ -24,6 +25,7 @@ Future<EditProfileResult?> showEditProfileDialog({
     builder: (_) => _EditProfileDialog(
       initialName: initialName,
       initialSignatureColorValue: initialSignatureColorValue,
+      unavailableColorValues: unavailableColorValues,
     ),
   );
 }
@@ -31,10 +33,12 @@ Future<EditProfileResult?> showEditProfileDialog({
 class _EditProfileDialog extends StatefulWidget {
   final String initialName;
   final int initialSignatureColorValue;
+  final Set<int> unavailableColorValues;
 
   const _EditProfileDialog({
     required this.initialName,
     required this.initialSignatureColorValue,
+    required this.unavailableColorValues,
   });
 
   @override
@@ -147,8 +151,13 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: _palette.map((value) {
                 final isSelected = value == _selectedColorValue;
+                final isUnavailable = widget.unavailableColorValues.contains(
+                  value,
+                );
                 return InkWell(
-                  onTap: () => setState(() => _selectedColorValue = value),
+                  onTap: isUnavailable
+                      ? null
+                      : () => setState(() => _selectedColorValue = value),
                   borderRadius: BorderRadius.circular(999),
                   child: Container(
                     width: 28,
@@ -157,7 +166,9 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
                       color: Color(value),
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: isSelected
+                        color: isUnavailable
+                            ? Colors.grey.withValues(alpha: 0.8)
+                            : isSelected
                             ? Colors.black.withValues(alpha: 0.15)
                             : Colors.transparent,
                         width: 2,
@@ -165,6 +176,8 @@ class _EditProfileDialogState extends State<_EditProfileDialog> {
                     ),
                     child: isSelected
                         ? const Icon(Icons.check, color: Colors.white, size: 16)
+                        : isUnavailable
+                        ? const Icon(Icons.close, color: Colors.white, size: 14)
                         : null,
                   ),
                 );

@@ -1,11 +1,15 @@
 import 'package:expense_tracker/features/expense/presentation/pages/personal_expense.dart';
 import 'package:expense_tracker/features/settings/presentation/pages/settings_page.dart';
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/firebase/current_user_context.dart';
+import '../../../../core/firebase/users_directory_data_source.dart';
 
 import '../../../analytics/presentation/pages/analytics_page.dart';
 import '../../../wallet/presentation/pages/wallet_page.dart';
@@ -21,56 +25,16 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int _currentNavIndex = 0;
   late final TransactionsStore _transactionsStore;
-
-  // Dummy data – will be replaced with Firebase data later
-  double _availableBalance = 22450;
-  DateTime? _selectedDate;
-  String _dateRange = '1 Feb 2026 - 30 Feb 2026';
-  final double _myExpenses = 12000;
-  final double _badarExpenses = 12000;
-  final double _logicWormsExpenses = 12000;
-  final double _rovynxExpenses = 12000;
-
-  final List<ExpenseEntry> _entries = [
-    ExpenseEntry(
-      description: 'Wholesale Purchase',
-      amount: 450,
-      category: 'Office Supplies',
-      date: DateTime(2026, 2, 18),
-      time: const TimeOfDay(hour: 14, minute: 30),
-      paidBy: 'Saeed',
-      isCredit: true,
-    ),
-    ExpenseEntry(
-      description: 'Electricity Bill',
-      amount: 1125,
-      category: 'Electricity',
-      date: DateTime(2026, 2, 17),
-      time: const TimeOfDay(hour: 10, minute: 0),
-      paidBy: 'You',
-      isCredit: false,
-    ),
-    ExpenseEntry(
-      description: 'Delivery Charges',
-      amount: 450,
-      category: 'Transport',
-      date: DateTime(2026, 2, 16),
-      time: const TimeOfDay(hour: 9, minute: 15),
-      paidBy: 'Saeed',
-      isCredit: true,
-    ),
-    ExpenseEntry(
-      description: 'Office Supplies',
-      amount: 6220,
-      category: 'Miscellaneous Expenses',
-      date: DateTime(2026, 2, 15),
-      time: const TimeOfDay(hour: 16, minute: 45),
-      paidBy: 'Badar',
-      isCredit: false,
-    ),
-  ];
+  late final CurrentUserContext _currentUserContext;
+  late final UsersDirectoryDataSource _usersDirectory;
+  late final ValueNotifier<int> _currentNavIndexNotifier;
+  late final ValueNotifier<DateTime> _selectedDateNotifier;
+  late final ValueNotifier<String> _currentUserNameNotifier;
+  late final ValueNotifier<Map<String, int>> _userColorByNameNotifier;
+  late final ValueNotifier<List<String>> _userNamesNotifier;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _usersSubscription;
+  String _currentUserUid = '';
 
   // Tab pages for bottom nav
   late final List<Widget> _pages;
@@ -79,49 +43,219 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _transactionsStore = sl<TransactionsStore>();
-    _transactionsStore.seedIfEmpty(_entries);
+    _currentUserContext = sl<CurrentUserContext>();
+    _usersDirectory = sl<UsersDirectoryDataSource>();
+    _currentNavIndexNotifier = ValueNotifier<int>(0);
+    _currentUserNameNotifier = ValueNotifier<String>('User');
+    _userColorByNameNotifier = ValueNotifier<Map<String, int>>(const {});
+    _userNamesNotifier = ValueNotifier<List<String>>(const []);
+    _currentUserUid = _currentUserContext.uid;
+    _transactionsStore.load();
+    _loadIdentityAndColors();
+    _listenToUserColorChanges();
+
+    // Default to today and react instantly to date changes.
+    final now = DateTime.now();
+    _selectedDateNotifier = ValueNotifier<DateTime>(
+      DateTime(now.year, now.month, now.day),
+    );
+
     _pages = [
-      _HomeContent(
-        availableBalance: _availableBalance,
-        dateRange: _dateRange,
-        myExpenses: _myExpenses,
-        badarExpenses: _badarExpenses,
-        logicWormsExpenses: _logicWormsExpenses,
-        rovynxExpenses: _rovynxExpenses,
-        entries: _entries,
-        onAddCash: _navigateToAddAmount,
-        onSubmitExpense: _navigateToSubmitExpense,
-        onPickDateRange: _pickDateRange,
-      ),
+      _buildHomeTab(),
       const AnalyticsPage(), // TODO: Replace with actual analytics page
       const WalletPage(), // TODO: Replace with actual wallet page
       const SettingsPage(), // TODO: Replace with actual settings page
     ];
   }
 
-  void _rebuildHomeContent() {
-    _pages[0] = _HomeContent(
-      availableBalance: _availableBalance,
-      dateRange: _dateRange,
-      myExpenses: _myExpenses,
-      badarExpenses: _badarExpenses,
-      logicWormsExpenses: _logicWormsExpenses,
-      rovynxExpenses: _rovynxExpenses,
-      entries: _entries,
-      onAddCash: _navigateToAddAmount,
-      onSubmitExpense: _navigateToSubmitExpense,
-      onPickDateRange: _pickDateRange,
+  @override
+  void dispose() {
+    _usersSubscription?.cancel();
+    _currentNavIndexNotifier.dispose();
+    _selectedDateNotifier.dispose();
+    _currentUserNameNotifier.dispose();
+    _userColorByNameNotifier.dispose();
+    _userNamesNotifier.dispose();
+    super.dispose();
+  }
+
+  void _listenToUserColorChanges() {
+    _usersSubscription?.cancel();
+    _usersSubscription = _usersDirectory.firestore
+        .collection('users')
+        .snapshots()
+        .listen((snapshot) {
+          final map = <String, int>{};
+          final names = <String>[];
+          for (final doc in snapshot.docs) {
+            final data = doc.data();
+            final name = (data['name'] as String?)?.trim();
+            final signatureColorValue = (data['signatureColorValue'] as num?)
+                ?.toInt();
+            if (name == null || name.isEmpty || signatureColorValue == null) {
+              continue;
+            }
+            map[name.toLowerCase().trim()] = signatureColorValue;
+            names.add(name);
+          }
+          _userColorByNameNotifier.value = map;
+          _userNamesNotifier.value = names;
+        });
+  }
+
+  Widget _buildHomeTab() {
+    return AnimatedBuilder(
+      animation: Listenable.merge([
+        _transactionsStore,
+        _selectedDateNotifier,
+        _currentUserNameNotifier,
+        _userColorByNameNotifier,
+        _userNamesNotifier,
+      ]),
+      builder: (context, _) {
+        final selectedDate = _selectedDateNotifier.value;
+        final currentUserName = _currentUserNameNotifier.value;
+        final userColorByName = _userColorByNameNotifier.value;
+        final allUserNames = _userNamesNotifier.value;
+        final dateRange = DateFormat('d MMM yyyy').format(selectedDate);
+        final allEntries = _transactionsStore.transactions;
+        final entries =
+            allEntries
+                .where((entry) {
+                  final day = DateTime(
+                    entry.date.year,
+                    entry.date.month,
+                    entry.date.day,
+                  );
+                  return day == selectedDate;
+                })
+                .toList(growable: false)
+              ..sort((a, b) {
+                final dateCmp = b.date.compareTo(a.date);
+                if (dateCmp != 0) return dateCmp;
+                final aMinutes = a.time.hour * 60 + a.time.minute;
+                final bMinutes = b.time.hour * 60 + b.time.minute;
+                return bMinutes.compareTo(aMinutes);
+              });
+
+        // Use the same date-filtered list for all "home" calculations.
+        final availableBalance = entries.fold<double>(
+          0,
+          (runningTotal, e) =>
+              runningTotal + (e.isCredit ? e.amount : -e.amount),
+        );
+
+        final uniqueNames = <String>{
+          currentUserName,
+          ...allUserNames.where((e) => e.trim().isNotEmpty),
+          ...entries
+              .map((e) => e.paidTo.trim().isEmpty ? e.ownerName : e.paidTo)
+              .where((e) => e.trim().isNotEmpty),
+        }.toList(growable: false);
+        uniqueNames.sort((a, b) {
+          if (a.toLowerCase() == currentUserName.toLowerCase()) return -1;
+          if (b.toLowerCase() == currentUserName.toLowerCase()) return 1;
+          return a.toLowerCase().compareTo(b.toLowerCase());
+        });
+        final displayUsers = uniqueNames.take(4).toList(growable: false);
+
+        final expenseByTarget = <String, double>{};
+        for (final e in entries.where((t) => !t.isCredit)) {
+          final target = (e.paidTo.trim().isEmpty ? e.ownerName : e.paidTo)
+              .toLowerCase()
+              .trim();
+          expenseByTarget[target] = (expenseByTarget[target] ?? 0) + e.amount;
+        }
+        final cards = displayUsers
+            .map((name) {
+              final normalized = name.toLowerCase().trim();
+              final cardEntries =
+                  normalized == currentUserName.toLowerCase().trim()
+                  ? allEntries
+                        .where((e) => e.ownerUid == _currentUserUid)
+                        .where((e) => e.kind == ExpenseEntryKind.expense)
+                        .toList(growable: false)
+                  : allEntries
+                        .where((e) => e.kind == ExpenseEntryKind.expense)
+                        .where((e) {
+                          final target =
+                              (e.paidTo.trim().isEmpty ? e.ownerName : e.paidTo)
+                                  .toLowerCase()
+                                  .trim();
+                          return target == normalized;
+                        })
+                        .toList(growable: false);
+              return _ExpenseCardData(
+                title: normalized == currentUserName.toLowerCase().trim()
+                    ? 'My Personal Expenses'
+                    : "$name's Expenses",
+                userName: name,
+                amount: expenseByTarget[normalized] ?? 0,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => PersonalExpensesScreen(
+                        entries: cardEntries,
+                        title:
+                            normalized == currentUserName.toLowerCase().trim()
+                            ? 'My Expenses'
+                            : "$name's Expenses",
+                        showOnlyExpenses: true,
+                      ),
+                    ),
+                  );
+                },
+              );
+            })
+            .toList(growable: false);
+
+        return _HomeContent(
+          currentUserName: currentUserName,
+          availableBalance: availableBalance,
+          dateRange: dateRange,
+          expenseCards: cards,
+          paidToTargets: displayUsers,
+          currentUserUid: _currentUserUid,
+          userColorByName: userColorByName,
+          entries: entries,
+          onAddCash: _navigateToAddAmount,
+          onSubmitExpense: _navigateToSubmitExpense,
+          onPickDateRange: _pickDateRange,
+          onReassignPaidTo: _reassignPaidTo,
+        );
+      },
     );
   }
 
+  Future<void> _reassignPaidTo(ExpenseEntry entry, String paidTo) async {
+    if (entry.id.isEmpty) return;
+    await _transactionsStore.reassignPaidTo(
+      transactionId: entry.id,
+      paidTo: paidTo,
+    );
+    if (!mounted) return;
+    if (_transactionsStore.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to update target: ${_transactionsStore.error}'),
+        ),
+      );
+    }
+  }
+
   Future<void> _pickDateRange() async {
-    final initial = _selectedDate ?? DateTime.now();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final initial = _selectedDateNotifier.value.isAfter(today)
+        ? today
+        : _selectedDateNotifier.value;
 
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
       firstDate: DateTime(2020),
-      lastDate: DateTime(2035),
+      lastDate: today,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -138,84 +272,125 @@ class _HomePageState extends State<HomePage> {
     );
 
     if (picked == null) return;
-    if (!mounted) return;
-
-    final fmt = DateFormat('d MMM yyyy');
-    setState(() {
-      _selectedDate = picked;
-      _dateRange = fmt.format(picked);
-      _rebuildHomeContent();
-    });
+    _selectedDateNotifier.value = DateTime(
+      picked.year,
+      picked.month,
+      picked.day,
+    );
   }
 
   Future<void> _navigateToAddAmount() async {
     final result = await Navigator.pushNamed(context, AppRoutes.addAmount);
     if (result != null && result is AddAmountResult) {
-      setState(() {
-        _availableBalance += result.amount;
-
-        final now = DateTime.now();
-        final today = DateTime(now.year, now.month, now.day);
-        final entry = ExpenseEntry(
-          description: result.description,
-          amount: result.amount,
-          category: 'Amount Added',
-          date: today,
-          time: TimeOfDay.fromDateTime(now),
-          paidBy: result.bankName ?? 'By Cash',
-          addedBy: 'You',
-          bankName: result.bankName,
-          kind: ExpenseEntryKind.amountAdded,
-          isCredit: true,
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final entry = ExpenseEntry(
+        description: result.description,
+        amount: result.amount,
+        category: 'Amount Added',
+        date: today,
+        time: TimeOfDay.fromDateTime(now),
+        paidBy: _currentUserNameNotifier.value,
+        addedBy: _currentUserNameNotifier.value,
+        ownerUid: _currentUserUid,
+        ownerName: _currentUserNameNotifier.value,
+        paidTo: _currentUserNameNotifier.value,
+        bankName: result.bankName,
+        kind: ExpenseEntryKind.amountAdded,
+        isCredit: true,
+      );
+      await _transactionsStore.add(entry);
+      if (!mounted) return;
+      if (_transactionsStore.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save amount: ${_transactionsStore.error}'),
+          ),
         );
-
-        _entries.insert(0, entry);
-        _transactionsStore.add(entry);
-        _rebuildHomeContent();
-      });
+      }
     }
   }
 
   Future<void> _navigateToSubmitExpense() async {
     final result = await Navigator.pushNamed(context, AppRoutes.submitExpense);
     if (result != null && result is ExpenseEntry) {
-      setState(() {
-        _entries.insert(0, result);
-        _transactionsStore.add(result);
-        if (!result.isCredit) {
-          _availableBalance -= result.amount;
-        }
-        _rebuildHomeContent();
-      });
+      final normalized = ExpenseEntry(
+        id: result.id,
+        description: result.description,
+        amount: result.amount,
+        category: result.category,
+        date: result.date,
+        time: result.time,
+        paidBy: _currentUserNameNotifier.value,
+        addedBy: _currentUserNameNotifier.value,
+        ownerUid: _currentUserUid,
+        ownerName: _currentUserNameNotifier.value,
+        paidTo: result.paidTo,
+        bankName: result.bankName,
+        kind: result.kind,
+        isCredit: result.isCredit,
+      );
+      await _transactionsStore.add(normalized);
+      if (!mounted) return;
+      if (_transactionsStore.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to save expense: ${_transactionsStore.error}',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadIdentityAndColors() async {
+    try {
+      final name = await _currentUserContext.resolvedName();
+      final profiles = await _usersDirectory.getAllProfilesByUid();
+      final map = <String, int>{};
+      for (final profile in profiles.values) {
+        map[profile.name.toLowerCase().trim()] = profile.signatureColorValue;
+      }
+      if (!mounted) return;
+      _currentUserNameNotifier.value = name;
+      _userColorByNameNotifier.value = map;
+    } catch (_) {
+      // Keep previous notifiers' values on failure.
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: IndexedStack(index: _currentNavIndex, children: _pages),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.endDocked,
-      floatingActionButton: _currentNavIndex == 0
-          ? Padding(
-              padding: const EdgeInsets.only(bottom: 84, right: 10),
-              child: FloatingActionButton(
-                onPressed: _navigateToSubmitExpense,
-                backgroundColor: AppColors.primary,
-                elevation: 4,
-                shape: const CircleBorder(),
-                child: const Icon(Icons.add, color: Colors.white, size: 28),
-              ),
-            )
-          : null,
-      bottomNavigationBar: _buildBottomNav(),
+    return ValueListenableBuilder<int>(
+      valueListenable: _currentNavIndexNotifier,
+      builder: (context, currentNavIndex, _) {
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          body: SafeArea(
+            child: IndexedStack(index: currentNavIndex, children: _pages),
+          ),
+          floatingActionButtonLocation: FloatingActionButtonLocation.endDocked,
+          floatingActionButton: currentNavIndex == 0
+              ? Padding(
+                  padding: const EdgeInsets.only(bottom: 84, right: 10),
+                  child: FloatingActionButton(
+                    onPressed: _navigateToSubmitExpense,
+                    backgroundColor: AppColors.primary,
+                    elevation: 4,
+                    shape: const CircleBorder(),
+                    child: const Icon(Icons.add, color: Colors.white, size: 28),
+                  ),
+                )
+              : null,
+          bottomNavigationBar: _buildBottomNav(currentNavIndex),
+        );
+      },
     );
   }
 
   // ── BOTTOM NAV (matches Figma) ────────────────────────────
-  Widget _buildBottomNav() {
+  Widget _buildBottomNav(int currentNavIndex) {
     return Container(
       color: const Color(0xFF1F1F1F),
       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -223,20 +398,20 @@ class _HomePageState extends State<HomePage> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _buildNavItem(Icons.home_filled, 0),
-            _buildNavItem(Icons.bar_chart, 1),
-            _buildNavItem(Icons.account_balance_wallet, 2),
-            _buildNavItem(Icons.settings, 3),
+            _buildNavItem(Icons.home_filled, 0, currentNavIndex),
+            _buildNavItem(Icons.bar_chart, 1, currentNavIndex),
+            _buildNavItem(Icons.account_balance_wallet, 2, currentNavIndex),
+            _buildNavItem(Icons.settings, 3, currentNavIndex),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildNavItem(IconData icon, int index) {
-    final isActive = _currentNavIndex == index;
+  Widget _buildNavItem(IconData icon, int index, int currentNavIndex) {
+    final isActive = currentNavIndex == index;
     return GestureDetector(
-      onTap: () => setState(() => _currentNavIndex = index),
+      onTap: () => _currentNavIndexNotifier.value = index,
       behavior: HitTestBehavior.opaque,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -261,28 +436,33 @@ class _HomePageState extends State<HomePage> {
 
 // ── HOME CONTENT (extracted so it can be used in IndexedStack) ───
 class _HomeContent extends StatelessWidget {
+  final String currentUserName;
+  final String currentUserUid;
   final double availableBalance;
   final String dateRange;
-  final double myExpenses;
-  final double badarExpenses;
-  final double logicWormsExpenses;
-  final double rovynxExpenses;
+  final List<_ExpenseCardData> expenseCards;
+  final List<String> paidToTargets;
+  final Map<String, int> userColorByName;
   final List<ExpenseEntry> entries;
   final VoidCallback onAddCash;
   final VoidCallback onSubmitExpense;
   final VoidCallback onPickDateRange;
+  final Future<void> Function(ExpenseEntry entry, String paidTo)
+  onReassignPaidTo;
 
   const _HomeContent({
+    required this.currentUserName,
+    required this.currentUserUid,
     required this.availableBalance,
     required this.dateRange,
-    required this.myExpenses,
-    required this.badarExpenses,
-    required this.logicWormsExpenses,
-    required this.rovynxExpenses,
+    required this.expenseCards,
+    required this.paidToTargets,
+    required this.userColorByName,
     required this.entries,
     required this.onAddCash,
     required this.onSubmitExpense,
     required this.onPickDateRange,
+    required this.onReassignPaidTo,
   });
 
   @override
@@ -329,7 +509,7 @@ class _HomeContent extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Logic Worms',
+                      currentUserName,
                       style: AppTextStyles.title,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -440,10 +620,17 @@ class _HomeContent extends StatelessWidget {
                     const SizedBox(width: 8),
                     GestureDetector(
                       onTap: () {
+                        final mine = entries
+                            .where((e) => e.ownerUid == currentUserUid)
+                            .toList(growable: false);
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => PersonalExpensesScreen(),
+                            builder: (context) => PersonalExpensesScreen(
+                              entries: mine,
+                              title: 'My Added Amount',
+                              showOnlyAmountAdded: true,
+                            ),
                           ),
                         );
                       },
@@ -486,99 +673,126 @@ class _HomeContent extends StatelessWidget {
   // ── EXPENSE GRID (overflow-safe) ──────────────────────────
   Widget _buildGridSection(BuildContext context) {
     final formatter = NumberFormat('#,##0', 'en_US');
-    return Column(
-      children: [
+    if (expenseCards.isEmpty) return const SizedBox.shrink();
+
+    final rows = <Widget>[];
+    for (var i = 0; i < expenseCards.length; i += 2) {
+      final left = expenseCards[i];
+      final right = i + 1 < expenseCards.length ? expenseCards[i + 1] : null;
+      rows.add(
         Row(
           children: [
             Expanded(
               child: _buildExpenseCard(
-                title: 'My Personal Expenses',
-                amount: formatter.format(myExpenses),
-                bgColor: AppColors.greenLight,
+                title: left.title,
+                amount: formatter.format(left.amount),
+                baseColor: _colorForUser(left.userName),
+                fallbackBgColor: Colors.white,
+                onTap: left.onTap,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: _buildExpenseCard(
-                title: "Badar's Expenses",
-                amount: formatter.format(badarExpenses),
-                bgColor: AppColors.redLight,
-              ),
+              child: right == null
+                  ? const SizedBox.shrink()
+                  : _buildExpenseCard(
+                      title: right.title,
+                      amount: formatter.format(right.amount),
+                      baseColor: _colorForUser(right.userName),
+                      fallbackBgColor: Colors.white,
+                      onTap: right.onTap,
+                    ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildExpenseCard(
-                title: 'Logic Worms Expenses',
-                amount: formatter.format(logicWormsExpenses),
-                bgColor: Colors.white,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildExpenseCard(
-                title: 'Rovynx Expenses',
-                amount: formatter.format(rovynxExpenses),
-                bgColor: Colors.white,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
+      );
+      if (i + 2 < expenseCards.length) {
+        rows.add(const SizedBox(height: 12));
+      }
+    }
+    return Column(children: rows);
+  }
+
+  Color? _colorForUser(String name) {
+    final key = name.toLowerCase().trim();
+    final value = userColorByName[key];
+    return value == null ? null : Color(value);
   }
 
   Widget _buildExpenseCard({
     required String title,
     required String amount,
-    required Color bgColor,
+    required Color fallbackBgColor,
+    required Color? baseColor,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(12),
-        border: bgColor == Colors.white
-            ? Border.all(color: AppColors.border)
-            : null,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textPrimary,
-              fontWeight: FontWeight.w500,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(amount, style: AppTextStyles.heading3),
-                ),
+    final bgColor = baseColor == null
+        ? fallbackBgColor
+        : baseColor.withValues(alpha: 0.14);
+    final titleColor = baseColor ?? AppColors.textPrimary;
+    final border = baseColor == null
+        ? (fallbackBgColor == Colors.white
+              ? Border.all(color: AppColors.border)
+              : null)
+        : Border.all(color: baseColor.withValues(alpha: 0.45));
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(12),
+          border: border,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: AppTextStyles.caption.copyWith(
+                color: titleColor,
+                fontWeight: FontWeight.w500,
               ),
-              const SizedBox(width: 4),
-              const Icon(Icons.open_in_new, color: AppColors.primary, size: 16),
-            ],
-          ),
-        ],
+              maxLines: 2,
+              softWrap: true,
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      amount,
+                      style: AppTextStyles.heading3.copyWith(
+                        color: baseColor ?? AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                if (onTap != null)
+                  Icon(
+                    Icons.open_in_new,
+                    color: baseColor ?? AppColors.primary,
+                    size: 16,
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
   // ── RECENT ACTIVITY (overflow-safe) ───────────────────────
   Widget _buildRecentActivitySection(BuildContext context) {
+    final grouped = _groupByDay(entries);
+    final groupKeys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -593,7 +807,25 @@ class _HomeContent extends StatelessWidget {
           if (entries.isEmpty)
             _buildEmptyState()
           else
-            ...entries.map((entry) => _buildActivityItem(entry)),
+            for (final day in groupKeys) ...[
+              _SectionHeader(title: _formatSectionTitle(day)),
+              const SizedBox(height: 10),
+              _ActivityCard(
+                children: [
+                  for (int i = 0; i < grouped[day]!.length; i++) ...[
+                    _buildActivityItem(context, grouped[day]![i]),
+                    if (i != grouped[day]!.length - 1)
+                      Divider(
+                        height: 1,
+                        indent: 20,
+                        endIndent: 0,
+                        color: AppColors.border.withValues(alpha: 0.9),
+                      ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
         ],
       ),
     );
@@ -628,70 +860,469 @@ class _HomeContent extends StatelessWidget {
     );
   }
 
-  Widget _buildActivityItem(ExpenseEntry entry) {
+  Widget _buildActivityItem(BuildContext context, ExpenseEntry entry) {
     final dateFormat = DateFormat('dd MMM yyyy');
     final formatter = NumberFormat('#,##0', 'en_US');
+    final paidTo = entry.paidTo.trim().isEmpty
+        ? entry.ownerName.trim()
+        : entry.paidTo.trim();
+    final actorName = entry.kind == ExpenseEntryKind.amountAdded
+        ? (entry.addedBy.trim().isNotEmpty ? entry.addedBy : entry.ownerName)
+        : (entry.paidBy.trim().isNotEmpty ? entry.paidBy : entry.ownerName);
+    final normalizedPaidTo = paidTo.toLowerCase().trim();
+    final normalizedActor = actorName.toLowerCase().trim();
+    final isAssignedToOther =
+        entry.kind == ExpenseEntryKind.expense &&
+        normalizedPaidTo.isNotEmpty &&
+        normalizedPaidTo != normalizedActor;
+    final displayName = entry.kind == ExpenseEntryKind.amountAdded
+        ? actorName
+        : (isAssignedToOther
+              ? 'Paid by $actorName assigned to $paidTo'
+              : 'Paid by $actorName');
+    final timeLabel = entry.time.format(context);
+    final normalizedName = actorName.toLowerCase().trim();
+    final colorValue = userColorByName[normalizedName];
+    final baseColor = colorValue == null ? null : Color(colorValue);
+    final bgColor = baseColor == null
+        ? (entry.isCredit ? AppColors.greenLight : AppColors.redLight)
+        : baseColor.withValues(alpha: 0.14);
+    final accentColor =
+        baseColor ?? (entry.isCredit ? AppColors.greenDark : AppColors.redDark);
+    final actionLabel = entry.kind == ExpenseEntryKind.amountAdded
+        ? 'Added by'
+        : '';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: entry.isCredit ? AppColors.greenLight : AppColors.redLight,
-        borderRadius: BorderRadius.circular(8),
+    return InkWell(
+      onTap: () => showDialog<void>(
+        context: context,
+        builder: (_) => _ActivityDetailsDialog(entry: entry),
       ),
-      child: IntrinsicHeight(
-        child: Row(
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              Container(
+                width: 4,
+                decoration: BoxDecoration(
+                  color: accentColor,
+                  borderRadius: const BorderRadius.horizontal(
+                    left: Radius.circular(8),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              entry.description,
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              actionLabel.isNotEmpty
+                                  ? '$actionLabel $displayName'
+                                  : displayName,
+                              style: AppTextStyles.caption.copyWith(
+                                color: accentColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Text(
+                                  dateFormat.format(entry.date),
+                                  style: AppTextStyles.caption,
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  width: 4,
+                                  height: 4,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.border.withValues(
+                                      alpha: 0.9,
+                                    ),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(timeLabel, style: AppTextStyles.caption),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      if (entry.kind == ExpenseEntryKind.expense &&
+                          entry.ownerUid == currentUserUid)
+                        PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert, size: 18),
+                          onSelected: (value) async {
+                            if (value == 'assign_to') {
+                              await _showReassignPaidToSheet(context, entry);
+                            }
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem<String>(
+                              value: 'assign_to',
+                              child: Text('Assign To'),
+                            ),
+                          ],
+                        ),
+                      Flexible(
+                        flex: 0,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            formatter.format(entry.amount),
+                            style: AppTextStyles.title,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showReassignPaidToSheet(
+    BuildContext context,
+    ExpenseEntry entry,
+  ) async {
+    if (entry.id.isEmpty) return;
+    final current = entry.paidTo.trim().isEmpty
+        ? entry.ownerName
+        : entry.paidTo;
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Reassign Paid To',
+                    style: AppTextStyles.heading3,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    entry.description,
+                    style: AppTextStyles.caption,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: paidToTargets.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final name = paidToTargets[index];
+                      final selected = name == current;
+                      return Material(
+                        color: selected
+                            ? AppColors.primary.withValues(alpha: 0.08)
+                            : AppColors.background,
+                        borderRadius: BorderRadius.circular(12),
+                        child: ListTile(
+                          leading: Icon(
+                            Icons.person_outline,
+                            color: selected
+                                ? AppColors.primary
+                                : AppColors.textSecondary,
+                          ),
+                          title: Text(name, style: AppTextStyles.bodyMedium),
+                          trailing: selected
+                              ? const Icon(
+                                  Icons.check_circle,
+                                  color: AppColors.primary,
+                                )
+                              : null,
+                          onTap: () => Navigator.pop(ctx, name),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (selected == null || selected == current) return;
+    await onReassignPaidTo(entry, selected);
+  }
+}
+
+class _ExpenseCardData {
+  final String title;
+  final String userName;
+  final double amount;
+  final VoidCallback? onTap;
+
+  const _ExpenseCardData({
+    required this.title,
+    required this.userName,
+    required this.amount,
+    this.onTap,
+  });
+}
+
+class _ActivityDetailsDialog extends StatelessWidget {
+  final ExpenseEntry entry;
+
+  const _ActivityDetailsDialog({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final dateFmt = DateFormat('dd MMM yyyy');
+    final amountFmt = NumberFormat('#,##0', 'en_US');
+    final isAdded = entry.kind == ExpenseEntryKind.amountAdded;
+    final paidTo = entry.paidTo.trim();
+    final paidBy = entry.paidBy.trim().isNotEmpty
+        ? entry.paidBy.trim()
+        : entry.ownerName;
+    final shouldShowPaidTo = !isAdded && paidTo.isNotEmpty;
+    return Dialog(
+      backgroundColor: Colors.white,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 18),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Color indicator bar on left
-            Container(
-              width: 4,
-              decoration: BoxDecoration(
-                color: entry.isCredit ? AppColors.greenDark : AppColors.redDark,
-                borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(8),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Activity Details',
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isAdded ? 'Amount Added' : 'Expense Transaction',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Divider(height: 1, color: AppColors.border.withValues(alpha: 0.8)),
+            const SizedBox(height: 12),
+            if (!isAdded) _detailRow('Paid by', paidBy),
+            if (shouldShowPaidTo) _detailRow('Paid to', paidTo),
+            _detailRow(
+              'Date & Time',
+              '${dateFmt.format(entry.date)} • ${entry.time.format(context)}',
+            ),
+            if (entry.category.trim().isNotEmpty)
+              _detailRow('Category', entry.category),
+            if ((entry.bankName ?? '').trim().isNotEmpty)
+              _detailRow('Bank', entry.bankName!),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Description',
+                style: AppTextStyles.caption.copyWith(
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            entry.description,
-                            style: AppTextStyles.bodyMedium,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Paid by ${entry.paidBy} • ${dateFormat.format(entry.date)}',
-                            style: AppTextStyles.caption,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      flex: 0,
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          formatter.format(entry.amount),
-                          style: AppTextStyles.title,
-                        ),
-                      ),
-                    ),
-                  ],
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppColors.border.withValues(alpha: 0.7),
                 ),
               ),
+              child: Text(
+                entry.description.trim().isEmpty ? '-' : entry.description,
+                style: AppTextStyles.bodyMedium,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  'Amount: ',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                Text(
+                  amountFmt.format(entry.amount),
+                  style: AppTextStyles.heading3.copyWith(
+                    color: isAdded
+                        ? AppColors.greenDark
+                        : AppColors.textPrimary,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
   }
+
+  Widget _detailRow(String title, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: AppTextStyles.caption.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: AppTextStyles.bodyMedium,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+
+  const _SectionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        title,
+        style: AppTextStyles.caption.copyWith(
+          color: AppColors.textSecondary,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _ActivityCard extends StatelessWidget {
+  final List<Widget> children;
+
+  const _ActivityCard({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+      ),
+      child: Column(children: children),
+    );
+  }
+}
+
+Map<DateTime, List<ExpenseEntry>> _groupByDay(List<ExpenseEntry> entries) {
+  final map = <DateTime, List<ExpenseEntry>>{};
+  for (final e in entries) {
+    final day = DateTime(e.date.year, e.date.month, e.date.day);
+    (map[day] ??= []).add(e);
+  }
+  return map;
+}
+
+String _formatSectionTitle(DateTime day) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final yesterday = today.subtract(const Duration(days: 1));
+
+  if (day == today) return 'Today';
+  if (day == yesterday) return 'Yesterday';
+
+  return DateFormat('dd MMM yyyy').format(day);
 }

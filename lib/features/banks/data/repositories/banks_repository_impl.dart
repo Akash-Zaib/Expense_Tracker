@@ -1,36 +1,53 @@
 import '../../domain/entities/bank.dart';
 import '../../domain/repositories/banks_repository.dart';
 import '../datasources/banks_local_data_source.dart';
+import '../datasources/banks_remote_data_source.dart';
 import '../models/bank_model.dart';
 
 class BanksRepositoryImpl implements BanksRepository {
   final BanksLocalDataSource localDataSource;
+  final BanksRemoteDataSource remoteDataSource;
 
-  const BanksRepositoryImpl(this.localDataSource);
+  const BanksRepositoryImpl(this.localDataSource, this.remoteDataSource);
 
   @override
   Future<List<Bank>> getBanks() async {
-    // TODO(firebase): replace with Firestore query:
-    // `workspaces/{workspaceId}/banks` (orderBy createdAt if needed)
-    return localDataSource.getBanks();
+    try {
+      final remote = await remoteDataSource.getBanks();
+      await localDataSource.saveBanks(remote);
+      return remote;
+    } catch (_) {
+      return localDataSource.getBanks();
+    }
   }
 
   @override
   Future<void> addBank(Bank bank) async {
-    // TODO(firebase): replace with `set()`:
-    // `workspaces/{workspaceId}/banks/{bank.id}`
+    final model = BankModel(
+      id: bank.id,
+      name: bank.name,
+      accountNumber: bank.accountNumber,
+      isSubmitted: bank.isSubmitted,
+    );
+    try {
+      await remoteDataSource.addBank(model);
+    } catch (_) {
+      // Keep local write so UX still works while offline.
+    }
     final current = await localDataSource.getBanks();
-    final updated = <BankModel>[
-      BankModel(id: bank.id, name: bank.name, accountNumber: bank.accountNumber),
+    await localDataSource.saveBanks([
+      model,
       ...current.where((b) => b.id != bank.id),
-    ];
-    await localDataSource.saveBanks(updated);
+    ]);
   }
 
   @override
   Future<void> removeBank(String id) async {
-    // TODO(firebase): replace with `delete()`:
-    // `workspaces/{workspaceId}/banks/{id}`
+    try {
+      await remoteDataSource.removeBank(id);
+    } catch (_) {
+      // Continue local delete if remote is unavailable.
+    }
     final current = await localDataSource.getBanks();
     final updated = current.where((b) => b.id != id).toList(growable: false);
     await localDataSource.saveBanks(updated);
@@ -38,11 +55,15 @@ class BanksRepositoryImpl implements BanksRepository {
 
   @override
   Future<void> submitAllBanks() async {
-    // TODO(firebase): replace with a batch write to update:
-    // `isSubmitted=true` for all docs in `workspaces/{workspaceId}/banks`
+    try {
+      await remoteDataSource.submitAllBanks();
+    } catch (_) {
+      // Keep local submission state if remote fails.
+    }
     final current = await localDataSource.getBanks();
-    final updated = current.map((b) => b.copyWith(isSubmitted: true)).toList(growable: false);
+    final updated = current
+        .map((b) => b.copyWith(isSubmitted: true))
+        .toList(growable: false);
     await localDataSource.saveBanks(updated);
   }
 }
-

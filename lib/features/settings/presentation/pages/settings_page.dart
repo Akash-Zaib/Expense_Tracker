@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/firebase/users_directory_data_source.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../auth/presentation/store/auth_store.dart';
 import '../store/settings_store.dart';
@@ -16,6 +18,8 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late final SettingsStore _store;
+  final UsersDirectoryDataSource _usersDirectory =
+      sl<UsersDirectoryDataSource>();
   // Initialize here so hot-reload doesn't break late init.
   final AuthStore _authStore = sl<AuthStore>();
 
@@ -28,7 +32,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   void dispose() {
-    _store.dispose();
     super.dispose();
   }
 
@@ -98,7 +101,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Logic Worms',
+                      _store.profile?.name ?? 'User',
                       style: AppTextStyles.title,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -201,17 +204,30 @@ class _SettingsPageState extends State<SettingsPage> {
                 onTap: profile == null
                     ? null
                     : () async {
+                        final unavailableColors =
+                            await _loadUnavailableColors();
+                        if (!context.mounted) return;
                         final result = await showEditProfileDialog(
                           context: context,
                           initialName: profile.name,
                           initialSignatureColorValue:
                               profile.signatureColorValue,
+                          unavailableColorValues: unavailableColors,
                         );
                         if (result == null) return;
-                        await _store.updateProfile(
+                        final ok = await _store.updateProfile(
                           name: result.name,
                           signatureColorValue: result.signatureColorValue,
                         );
+                        if (!context.mounted) return;
+                        if (!ok) {
+                          final message =
+                              _store.error ??
+                              'Could not update profile. Please try again.';
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(SnackBar(content: Text(message)));
+                        }
                       },
                 borderRadius: BorderRadius.circular(999),
                 child: Container(
@@ -233,6 +249,18 @@ class _SettingsPageState extends State<SettingsPage> {
         ],
       ),
     );
+  }
+
+  Future<Set<int>> _loadUnavailableColors() async {
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUid == null) return {};
+    final profiles = await _usersDirectory.getAllProfilesByUid();
+    final values = <int>{};
+    for (final profile in profiles.values) {
+      if (profile.uid == currentUid) continue;
+      values.add(profile.signatureColorValue);
+    }
+    return values;
   }
 
   // ── SETTINGS LIST ────────────────────────────────────────
@@ -426,9 +454,9 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!mounted) return;
 
     if (_authStore.error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_authStore.error!)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_authStore.error!)));
       return;
     }
 
