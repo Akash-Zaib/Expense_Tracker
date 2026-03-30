@@ -178,7 +178,9 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
     if (!mounted) return;
 
     final txs = _transactionsStore.transactions;
-    final uidMap = {ownerNameEarly.toLowerCase().trim(): _currentUserContext.uid};
+    final uidMap = {
+      ownerNameEarly.toLowerCase().trim(): _currentUserContext.uid,
+    };
     final bankLabel = (_selectedBank?.name ?? '').trim();
     final isCash =
         bankLabel.isEmpty || bankLabel == AmountAddedByUserPage.cashSourceLabel;
@@ -445,16 +447,16 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
               ),
               const SizedBox(height: 20),
 
-              _buildLabel('Paid To'),
-              _buildSelectionField(
-                text: _selectedPaidTo.trim().isEmpty
-                    ? 'Optional (Self/Personal by default)'
-                    : _selectedPaidTo,
-                icon: Icons.person_outline,
-                isSelected: _selectedPaidTo.trim().isNotEmpty,
-                onTap: _showPaidToSelectionSheet,
-              ),
-              const SizedBox(height: 20),
+              // _buildLabel('Paid To'),
+              // _buildSelectionField(
+              //   text: _selectedPaidTo.trim().isEmpty
+              //       ? 'Optional (Self/Personal by default)'
+              //       : _selectedPaidTo,
+              //   icon: Icons.person_outline,
+              //   isSelected: _selectedPaidTo.trim().isNotEmpty,
+              //   onTap: _showPaidToSelectionSheet,
+              // ),
+              // const SizedBox(height: 20),
 
               // Date
               _buildLabel('Transaction Date'),
@@ -612,7 +614,8 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
                       final option = options[index];
                       final isSelf = option == 'Self (Personal)';
                       final targetValue = isSelf ? '' : option;
-                      final selected = (isSelf && _selectedPaidTo.trim().isEmpty) ||
+                      final selected =
+                          (isSelf && _selectedPaidTo.trim().isEmpty) ||
                           (!isSelf && _selectedPaidTo == targetValue);
                       return Material(
                         color: selected
@@ -631,10 +634,7 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
                             style: AppTextStyles.bodyMedium,
                           ),
                           subtitle: isSelf
-                              ? Text(
-                                  ownerName,
-                                  style: AppTextStyles.caption,
-                                )
+                              ? Text(ownerName, style: AppTextStyles.caption)
                               : null,
                           trailing: selected
                               ? const Icon(

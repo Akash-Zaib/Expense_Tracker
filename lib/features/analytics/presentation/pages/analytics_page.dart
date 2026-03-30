@@ -183,35 +183,35 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
           ),
         ),
         const SizedBox(width: 12),
-        InkWell(
-          onTap: () async {
-            final result = await showModalBottomSheet<AnalyticsFilter>(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.white,
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              builder: (_) => FilterExpensesSheet(
-                initial: _filter,
-                paidByOptions: _paidByOptions(mine),
-                categoryOptions: _categoryOptions(mine),
-              ),
-            );
-            if (result != null) setState(() => _filter = result);
-          },
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.transparent),
-            ),
-            child: const Icon(Icons.tune, color: AppColors.primary),
-          ),
-        ),
+        // InkWell(
+        //   onTap: () async {
+        //     final result = await showModalBottomSheet<AnalyticsFilter>(
+        //       context: context,
+        //       isScrollControlled: true,
+        //       backgroundColor: Colors.white,
+        //       shape: const RoundedRectangleBorder(
+        //         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        //       ),
+        //       builder: (_) => FilterExpensesSheet(
+        //         initial: _filter,
+        //         paidByOptions: _paidByOptions(mine),
+        //         categoryOptions: _categoryOptions(mine),
+        //       ),
+        //     );
+        //     if (result != null) setState(() => _filter = result);
+        //   },
+        //   borderRadius: BorderRadius.circular(14),
+        //   child: Container(
+        //     width: 52,
+        //     height: 52,
+        //     decoration: BoxDecoration(
+        //       color: Colors.white,
+        //       borderRadius: BorderRadius.circular(14),
+        //       border: Border.all(color: Colors.transparent),
+        //     ),
+        //     child: const Icon(Icons.tune, color: AppColors.primary),
+        //   ),
+        // ),
       ],
     );
   }
