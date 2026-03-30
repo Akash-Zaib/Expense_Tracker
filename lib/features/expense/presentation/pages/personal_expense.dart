@@ -71,7 +71,7 @@ class PersonalExpensesScreen extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
             children: [
-              if (!showOnlyExpenses || showOnlyAmountAdded) ...[
+              if (!showOnlyExpenses && !showOnlyAmountAdded) ...[
                 _TotalCard(totalAddedAmount: addedTotal),
                 const SizedBox(height: 16),
               ],

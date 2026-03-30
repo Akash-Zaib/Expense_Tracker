@@ -15,6 +15,7 @@ import '../../../analytics/presentation/pages/analytics_page.dart';
 import '../../../wallet/presentation/pages/wallet_page.dart';
 import '../../domain/entities/expense_entry.dart';
 import 'add_amount_page.dart';
+import 'amount_added_by_user_page.dart';
 import '../store/transactions_store.dart';
 
 class HomePage extends StatefulWidget {
@@ -287,6 +288,20 @@ class _HomePageState extends State<HomePage> {
           currentUserUid: _currentUserUid,
           userColorByName: userColorByName,
           entries: entries,
+          onOpenAmountAddedBreakdown: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (context) => AmountAddedByUserPage(
+                  entries: entries,
+                  displayUsers: displayUsers,
+                  uidByNormalizedName: uidByNormalizedName,
+                  userColorByName: userColorByName,
+                  dateRange: dateRange,
+                ),
+              ),
+            );
+          },
           onAddCash: _navigateToAddAmount,
           onSubmitExpense: _navigateToSubmitExpense,
           onPickDateRange: _pickDateRange,
@@ -587,6 +602,7 @@ class _HomeContent extends StatelessWidget {
   final Future<void> Function(ExpenseEntry entry) onSplitAssign;
   final Map<String, int> userColorByName;
   final List<ExpenseEntry> entries;
+  final VoidCallback onOpenAmountAddedBreakdown;
   final VoidCallback onAddCash;
   final VoidCallback onSubmitExpense;
   final VoidCallback onPickDateRange;
@@ -602,6 +618,7 @@ class _HomeContent extends StatelessWidget {
     required this.paidToTargets,
     required this.userColorByName,
     required this.entries,
+    required this.onOpenAmountAddedBreakdown,
     required this.onAddCash,
     required this.onSubmitExpense,
     required this.onPickDateRange,
@@ -749,7 +766,7 @@ class _HomeContent extends StatelessWidget {
               Flexible(
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Flexible(
                       child: FittedBox(
@@ -763,28 +780,11 @@ class _HomeContent extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     GestureDetector(
-                      onTap: () {
-                        final mine = entries
-                            .where((e) => e.ownerUid == currentUserUid)
-                            .toList(growable: false);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => PersonalExpensesScreen(
-                              entries: mine,
-                              title: 'My Added Amount',
-                              showOnlyAmountAdded: true,
-                            ),
-                          ),
-                        );
-                      },
-                      child: const Padding(
-                        padding: EdgeInsets.only(top: 6),
-                        child: Icon(
-                          Icons.open_in_new,
-                          color: AppColors.primary,
-                          size: 20,
-                        ),
+                      onTap: onOpenAmountAddedBreakdown,
+                      child: const Icon(
+                        Icons.open_in_new,
+                        color: AppColors.primary,
+                        size: 20,
                       ),
                     ),
                   ],
@@ -958,13 +958,6 @@ class _HomeContent extends StatelessWidget {
                 children: [
                   for (int i = 0; i < grouped[day]!.length; i++) ...[
                     _buildActivityItem(context, grouped[day]![i]),
-                    if (i != grouped[day]!.length - 1)
-                      Divider(
-                        height: 1,
-                        indent: 20,
-                        endIndent: 0,
-                        color: AppColors.border.withValues(alpha: 0.9),
-                      ),
                   ],
                 ],
               ),
@@ -1117,36 +1110,53 @@ class _HomeContent extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      if (entry.kind == ExpenseEntryKind.expense &&
-                          entry.ownerUid == currentUserUid)
-                        PopupMenuButton<String>(
-                          icon: const Icon(Icons.more_vert, size: 18),
-                          onSelected: (value) async {
-                            if (value == 'split_assign') {
-                              await onSplitAssign(entry);
-                            } else if (value == 'assign_to') {
-                              await _showReassignPaidToSheet(context, entry);
-                            }
-                          },
-                          itemBuilder: (context) => const [
-                            PopupMenuItem<String>(
-                              value: 'split_assign',
-                              child: Text('Split & Assign'),
-                            ),
-                            PopupMenuItem<String>(
-                              value: 'assign_to',
-                              child: Text('Assign To'),
-                            ),
-                          ],
-                        ),
                       Flexible(
                         flex: 0,
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            formatter.format(entry.amount),
-                            style: AppTextStyles.title,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (entry.kind == ExpenseEntryKind.expense &&
+                                entry.ownerUid == currentUserUid)
+                              PopupMenuButton<String>(
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                  minWidth: 24,
+                                  minHeight: 24,
+                                ),
+                                icon: const Icon(Icons.more_vert, size: 18),
+                                onSelected: (value) async {
+                                  if (value == 'split_assign') {
+                                    await onSplitAssign(entry);
+                                  } else if (value == 'assign_to') {
+                                    await _showReassignPaidToSheet(
+                                      context,
+                                      entry,
+                                    );
+                                  }
+                                },
+                                itemBuilder: (context) => const [
+                                  PopupMenuItem<String>(
+                                    value: 'split_assign',
+                                    child: Text('Split & Assign'),
+                                  ),
+                                  PopupMenuItem<String>(
+                                    value: 'assign_to',
+                                    child: Text('Assign To'),
+                                  ),
+                                ],
+                              ),
+                            if (entry.kind == ExpenseEntryKind.expense &&
+                                entry.ownerUid == currentUserUid)
+                              const SizedBox(width: 4),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                formatter.format(entry.amount),
+                                style: AppTextStyles.title,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -1582,7 +1592,6 @@ class _ActivityCard extends StatelessWidget {
             offset: const Offset(0, 6),
           ),
         ],
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
       ),
       child: Column(children: children),
     );

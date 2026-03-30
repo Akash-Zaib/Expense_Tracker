@@ -19,7 +19,6 @@ class _SignupPageState extends State<SignupPage>
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
   bool _obscurePassword = true;
-  bool _agreeToTerms = false;
   late final AuthStore _authStore;
 
   final _nameCtrl = TextEditingController();
@@ -53,13 +52,6 @@ class _SignupPageState extends State<SignupPage>
 
   Future<void> _onSignup() async {
     FocusScope.of(context).unfocus();
-
-    if (!_agreeToTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please agree to the Terms & Conditions')),
-      );
-      return;
-    }
 
     final name = _nameCtrl.text.trim();
     final email = _emailCtrl.text.trim();
@@ -263,59 +255,6 @@ class _SignupPageState extends State<SignupPage>
               onPressed: () =>
                   setState(() => _obscurePassword = !_obscurePassword),
             ),
-          ),
-          const SizedBox(height: 16),
-          // Terms checkbox
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 22,
-                height: 22,
-                child: Checkbox(
-                  value: _agreeToTerms,
-                  onChanged: (val) =>
-                      setState(() => _agreeToTerms = val ?? false),
-                  activeColor: AppColors.primary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  side: const BorderSide(color: AppColors.border, width: 1.5),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text.rich(
-                  TextSpan(
-                    text: 'I agree to the ',
-                    style: AppTextStyles.caption.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
-                    children: [
-                      TextSpan(
-                        text: 'Terms & Conditions',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w600,
-                          decoration: TextDecoration.underline,
-                          decorationColor: AppColors.primary,
-                        ),
-                      ),
-                      TextSpan(text: ' and '),
-                      TextSpan(
-                        text: 'Privacy Policy',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w600,
-                          decoration: TextDecoration.underline,
-                          decorationColor: AppColors.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
           ),
           const SizedBox(height: 24),
           // Sign Up button

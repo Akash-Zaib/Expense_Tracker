@@ -25,7 +25,9 @@ class MyApp extends StatelessWidget {
     final prefs = sl<SharedPreferences>();
     final rememberMe = prefs.getBool('auth.remember_me') ?? false;
     final isSignedIn = FirebaseAuth.instance.currentUser != null;
-    final initialRoute = (rememberMe && isSignedIn) ? AppRoutes.home : AppRoutes.login;
+    final initialRoute = (rememberMe && isSignedIn)
+        ? AppRoutes.home
+        : AppRoutes.login;
 
     return MaterialApp(
       title: 'Expense Tracker',
