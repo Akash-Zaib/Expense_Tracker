@@ -80,7 +80,7 @@ Future<void> init() async {
 
   // Features - Settings
   sl.registerLazySingleton<SettingsLocalDataSource>(
-    () => SettingsLocalDataSourceImpl(sl()),
+    () => SettingsLocalDataSourceImpl(sl(), sl<CurrentUserContext>()),
   );
   sl.registerLazySingleton<SettingsRemoteDataSource>(
     () => SettingsRemoteDataSourceImpl(sl()),
@@ -115,12 +115,13 @@ Future<void> init() async {
       updatePaidTo: sl(),
       splitAndAssign: sl(),
       moveTransactionToUser: sl(),
+      currentUserContext: sl(),
     ),
   );
 
   // Features - Banks
   sl.registerLazySingleton<BanksLocalDataSource>(
-    () => BanksLocalDataSourceImpl(sl()),
+    () => BanksLocalDataSourceImpl(sl(), sl<CurrentUserContext>()),
   );
   sl.registerLazySingleton<BanksRemoteDataSource>(
     () => BanksRemoteDataSourceImpl(sl()),

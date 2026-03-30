@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/firebase/current_user_context.dart';
 import '../models/user_profile_model.dart';
 
 abstract class SettingsLocalDataSource {
@@ -9,13 +10,28 @@ abstract class SettingsLocalDataSource {
 }
 
 class SettingsLocalDataSourceImpl implements SettingsLocalDataSource {
-  static const _kName = 'settings_profile_name';
-  static const _kEmail = 'settings_profile_email';
-  static const _kSignatureColor = 'settings_profile_signature_color';
+  static const _kNameBase = 'settings_profile_name';
+  static const _kEmailBase = 'settings_profile_email';
+  static const _kSignatureColorBase = 'settings_profile_signature_color';
 
   final SharedPreferences _prefs;
+  final CurrentUserContext _currentUserContext;
 
-  const SettingsLocalDataSourceImpl(this._prefs);
+  const SettingsLocalDataSourceImpl(this._prefs, this._currentUserContext);
+
+  String? _uidOrNull() {
+    try {
+      return _currentUserContext.uid;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String? _keyOrNull(String baseKey) {
+    final uid = _uidOrNull();
+    if (uid == null || uid.trim().isEmpty) return null;
+    return '$baseKey.$uid';
+  }
 
   UserProfileModel _defaultProfile() {
     return const UserProfileModel(
@@ -28,19 +44,34 @@ class SettingsLocalDataSourceImpl implements SettingsLocalDataSource {
   @override
   Future<UserProfileModel> getUserProfile() async {
     final fallback = _defaultProfile();
+
+    final nameKey = _keyOrNull(_kNameBase);
+    final emailKey = _keyOrNull(_kEmailBase);
+    final sigKey = _keyOrNull(_kSignatureColorBase);
+
+    if (nameKey == null || emailKey == null || sigKey == null) {
+      return fallback;
+    }
+
     return UserProfileModel.fromStorage(
-      name: _prefs.getString(_kName),
-      email: _prefs.getString(_kEmail),
-      signatureColorValue: _prefs.getInt(_kSignatureColor),
+      name: _prefs.getString(nameKey),
+      email: _prefs.getString(emailKey),
+      signatureColorValue: _prefs.getInt(sigKey),
       fallback: fallback,
     );
   }
 
   @override
   Future<void> saveUserProfile(UserProfileModel profile) async {
-    await _prefs.setString(_kName, profile.name);
-    await _prefs.setString(_kEmail, profile.email);
-    await _prefs.setInt(_kSignatureColor, profile.signatureColorValue);
+    final nameKey = _keyOrNull(_kNameBase);
+    final emailKey = _keyOrNull(_kEmailBase);
+    final sigKey = _keyOrNull(_kSignatureColorBase);
+
+    if (nameKey == null || emailKey == null || sigKey == null) return;
+
+    await _prefs.setString(nameKey, profile.name);
+    await _prefs.setString(emailKey, profile.email);
+    await _prefs.setInt(sigKey, profile.signatureColorValue);
   }
 }
 

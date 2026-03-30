@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/firebase/current_user_context.dart';
 import '../models/bank_model.dart';
 
 abstract class BanksLocalDataSource {
@@ -12,15 +13,28 @@ abstract class BanksLocalDataSource {
 class BanksLocalDataSourceImpl implements BanksLocalDataSource {
   // Local cache only. Firebase later will live in Firestore under:
   // `workspaces/{workspaceId}/banks/{bankId}`
-  static const _key = 'banks.v1';
+  static const _baseKey = 'banks.v1';
 
   final SharedPreferences prefs;
+  final CurrentUserContext _currentUserContext;
 
-  const BanksLocalDataSourceImpl(this.prefs);
+  const BanksLocalDataSourceImpl(this.prefs, this._currentUserContext);
+
+  String? _keyForCurrentUser() {
+    try {
+      final uid = _currentUserContext.uid;
+      return '$_baseKey.$uid';
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   Future<List<BankModel>> getBanks() async {
-    final raw = prefs.getString(_key);
+    final key = _keyForCurrentUser();
+    if (key == null) return [];
+
+    final raw = prefs.getString(key);
     if (raw == null || raw.trim().isEmpty) return [];
 
     final decoded = jsonDecode(raw);
@@ -35,8 +49,12 @@ class BanksLocalDataSourceImpl implements BanksLocalDataSource {
 
   @override
   Future<void> saveBanks(List<BankModel> banks) async {
-    final encoded = jsonEncode(banks.map((b) => b.toJson()).toList(growable: false));
-    await prefs.setString(_key, encoded);
+    final key = _keyForCurrentUser();
+    if (key == null) return;
+
+    final encoded =
+        jsonEncode(banks.map((b) => b.toJson()).toList(growable: false));
+    await prefs.setString(key, encoded);
   }
 }
 

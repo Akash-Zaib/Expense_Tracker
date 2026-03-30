@@ -12,6 +12,7 @@ import '../../domain/entities/expense_entry.dart';
 import 'add_amount_page.dart'; // For BankOption & appBankOptions
 import '../../../banks/presentation/store/banks_store.dart';
 import '../store/transactions_store.dart';
+import 'amount_added_by_user_page.dart';
 
 /// Category model with name, icon, and color.
 class CategoryOption {
@@ -173,7 +174,44 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
     }
 
     await _ensureTransactionsLoaded();
-    final availableBalance = _transactionsStore.transactions.fold<double>(
+    final ownerNameEarly = await _currentUserContext.resolvedName();
+    if (!mounted) return;
+
+    final txs = _transactionsStore.transactions;
+    final uidMap = {ownerNameEarly.toLowerCase().trim(): _currentUserContext.uid};
+    final bankLabel = (_selectedBank?.name ?? '').trim();
+    final isCash =
+        bankLabel.isEmpty || bankLabel == AmountAddedByUserPage.cashSourceLabel;
+
+    if (!isCash) {
+      final remaining = AmountAddedByUserPage.remainingForBankSourceRaw(
+        displayName: ownerNameEarly,
+        bankLabel: bankLabel,
+        entries: txs,
+        uidByNormalizedName: uidMap,
+      );
+      if (amount > remaining) {
+        final fmt = NumberFormat('#,##0', 'en_US');
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              remaining <= 0
+                  ? 'You have not added money from this bank. Add funds first or choose By Cash.'
+                  : 'Only ${fmt.format(remaining)} available for this bank.',
+            ),
+            backgroundColor: AppColors.redDark,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+        return;
+      }
+    }
+
+    final availableBalance = txs.fold<double>(
       0,
       (sum, e) => sum + (e.isCredit ? e.amount : -e.amount),
     );
@@ -186,7 +224,7 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
     final today = DateTime(now.year, now.month, now.day);
 
     final ownerUid = _currentUserContext.uid;
-    final ownerName = await _currentUserContext.resolvedName();
+    final ownerName = ownerNameEarly;
     if (!mounted) return;
     final paidTo = _selectedPaidTo.trim().isEmpty ? ownerName : _selectedPaidTo;
     final entry = ExpenseEntry(

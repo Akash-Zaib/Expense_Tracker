@@ -53,7 +53,9 @@ class _HomePageState extends State<HomePage> {
     _userNamesNotifier = ValueNotifier<List<String>>(const []);
     _uidByNormalizedNameNotifier = ValueNotifier<Map<String, String>>(const {});
     _currentUserUid = _currentUserContext.uid;
-    _transactionsStore.load();
+    // Home cards/sections need a wider snapshot so other users' expenses appear.
+    // (TransactionsStore default limit is small.)
+    _transactionsStore.load(force: true, limit: 2000);
     _loadIdentityAndColors();
     _listenToUserColorChanges();
 
@@ -148,6 +150,16 @@ class _HomePageState extends State<HomePage> {
                 return bMinutes.compareTo(aMinutes);
               });
 
+        // Recent Activity: all partners' transactions (not limited to selected date).
+        final activityEntries = allEntries.toList(growable: false)
+          ..sort((a, b) {
+            final dateCmp = b.date.compareTo(a.date);
+            if (dateCmp != 0) return dateCmp;
+            final aMinutes = a.time.hour * 60 + a.time.minute;
+            final bMinutes = b.time.hour * 60 + b.time.minute;
+            return bMinutes.compareTo(aMinutes);
+          });
+
         // Use the same date-filtered list for all "home" calculations.
         final availableBalance = entries.fold<double>(
           0,
@@ -223,43 +235,29 @@ class _HomePageState extends State<HomePage> {
             .toList(growable: false)
           ..sort((a, b) => a.toLowerCase().trim().compareTo(b.toLowerCase().trim()));
 
-        final expenseByOwnerUid = <String, double>{};
-        for (final e
-            in entries.where((t) => !t.isCredit && t.kind == ExpenseEntryKind.expense)) {
-          final uid = e.ownerUid.trim();
-          if (uid.isEmpty) continue;
-          expenseByOwnerUid[uid] = (expenseByOwnerUid[uid] ?? 0) + e.amount;
+        // Group "expenses shown on the card" by `paidTo` (who the expense is
+        // assigned to), not by `ownerUid` (who created the record).
+        final expenseByPaidToNormalized = <String, double>{};
+        for (final e in entries.where((t) =>
+            !t.isCredit && t.kind == ExpenseEntryKind.expense)) {
+          final paidToNormalized = e.paidTo.trim().toLowerCase();
+          if (paidToNormalized.isEmpty) continue;
+          expenseByPaidToNormalized[paidToNormalized] =
+              (expenseByPaidToNormalized[paidToNormalized] ?? 0) + e.amount;
         }
-
-        final myExpenseAmount = entries
-            .where((e) => e.ownerUid == _currentUserUid)
-            .where((e) => e.kind == ExpenseEntryKind.expense)
-            .where((e) => !e.isCredit)
-            .fold<double>(0, (runningTotal, e) => runningTotal + e.amount);
         final cards = displayUsers
             .map((name) {
               final normalized = name.toLowerCase().trim();
-              final userUid = uidByNormalizedName[normalized];
-              final cardEntries =
-                  normalized == currentUserName.toLowerCase().trim()
-                  ? allEntries
-                        .where((e) => e.ownerUid == _currentUserUid)
-                        .where((e) => e.kind == ExpenseEntryKind.expense)
-                        .toList(growable: false)
-                  : allEntries
-                        .where((e) => e.kind == ExpenseEntryKind.expense)
-                        .where((e) {
-                          return e.ownerUid.trim() == (userUid ?? '');
-                        })
-                        .toList(growable: false);
+              final cardEntries = allEntries
+                  .where((e) => e.kind == ExpenseEntryKind.expense)
+                  .where((e) => e.paidTo.trim().toLowerCase() == normalized)
+                  .toList(growable: false);
               return _ExpenseCardData(
                 title: normalized == currentUserName.toLowerCase().trim()
                     ? 'My Personal Expenses'
                     : "$name's Expenses",
                 userName: name,
-                amount: normalized == currentUserName.toLowerCase().trim()
-                    ? myExpenseAmount
-                    : (userUid == null ? 0 : (expenseByOwnerUid[userUid] ?? 0)),
+                amount: expenseByPaidToNormalized[normalized] ?? 0,
                 onTap: () {
                   Navigator.push(
                     context,
@@ -288,16 +286,15 @@ class _HomePageState extends State<HomePage> {
           currentUserUid: _currentUserUid,
           userColorByName: userColorByName,
           entries: entries,
+          activityEntries: activityEntries,
           onOpenAmountAddedBreakdown: () {
             Navigator.push(
               context,
               MaterialPageRoute<void>(
                 builder: (context) => AmountAddedByUserPage(
-                  entries: entries,
                   displayUsers: displayUsers,
                   uidByNormalizedName: uidByNormalizedName,
                   userColorByName: userColorByName,
-                  dateRange: dateRange,
                 ),
               ),
             );
@@ -602,6 +599,8 @@ class _HomeContent extends StatelessWidget {
   final Future<void> Function(ExpenseEntry entry) onSplitAssign;
   final Map<String, int> userColorByName;
   final List<ExpenseEntry> entries;
+  /// All partners — used only for Recent Activity (not date-scoped).
+  final List<ExpenseEntry> activityEntries;
   final VoidCallback onOpenAmountAddedBreakdown;
   final VoidCallback onAddCash;
   final VoidCallback onSubmitExpense;
@@ -618,6 +617,7 @@ class _HomeContent extends StatelessWidget {
     required this.paidToTargets,
     required this.userColorByName,
     required this.entries,
+    required this.activityEntries,
     required this.onOpenAmountAddedBreakdown,
     required this.onAddCash,
     required this.onSubmitExpense,
@@ -935,7 +935,7 @@ class _HomeContent extends StatelessWidget {
 
   // ── RECENT ACTIVITY (overflow-safe) ───────────────────────
   Widget _buildRecentActivitySection(BuildContext context) {
-    final grouped = _groupByDay(entries);
+    final grouped = _groupByDay(activityEntries);
     final groupKeys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
     return Container(
       padding: const EdgeInsets.all(20),
@@ -948,7 +948,7 @@ class _HomeContent extends StatelessWidget {
         children: [
           Text('Recent Activity', style: AppTextStyles.title),
           const SizedBox(height: 16),
-          if (entries.isEmpty)
+          if (activityEntries.isEmpty)
             _buildEmptyState()
           else
             for (final day in groupKeys) ...[

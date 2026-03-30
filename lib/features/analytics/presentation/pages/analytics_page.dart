@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/firebase/current_user_context.dart';
 import '../../../../core/routes/app_routes.dart';
 import '../../../expense/domain/entities/expense_entry.dart';
 import '../../../expense/presentation/store/transactions_store.dart';
@@ -17,6 +18,7 @@ class AnalyticsPage extends StatefulWidget {
 
 class _AnalyticsPageState extends State<AnalyticsPage> {
   late final TransactionsStore _transactionsStore;
+  late final CurrentUserContext _currentUserContext;
   final TextEditingController _searchController = TextEditingController();
 
   AnalyticsFilter _filter = const AnalyticsFilter();
@@ -25,6 +27,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   void initState() {
     super.initState();
     _transactionsStore = sl<TransactionsStore>();
+    _currentUserContext = sl<CurrentUserContext>();
     _searchController.addListener(() => setState(() {}));
   }
 
@@ -40,7 +43,11 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
       animation: _transactionsStore,
       builder: (context, _) {
         final all = _transactionsStore.transactions;
-        final filtered = _apply(all);
+        final uid = _currentUserContext.uid;
+        final mine = all
+            .where((e) => e.ownerUid.trim() == uid)
+            .toList(growable: false);
+        final filtered = _apply(mine);
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(20.0),
@@ -49,7 +56,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
             children: [
               _buildHeader(context),
               const SizedBox(height: 18),
-              _buildSearchRow(context),
+              _buildSearchRow(context, mine),
               const SizedBox(height: 14),
               _buildRecentExpenses(context, filtered),
               const SizedBox(height: 80),
@@ -139,7 +146,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     );
   }
 
-  Widget _buildSearchRow(BuildContext context) {
+  Widget _buildSearchRow(BuildContext context, List<ExpenseEntry> mine) {
     return Row(
       children: [
         Expanded(
@@ -187,10 +194,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
               ),
               builder: (_) => FilterExpensesSheet(
                 initial: _filter,
-                paidByOptions: _paidByOptions(_transactionsStore.transactions),
-                categoryOptions: _categoryOptions(
-                  _transactionsStore.transactions,
-                ),
+                paidByOptions: _paidByOptions(mine),
+                categoryOptions: _categoryOptions(mine),
               ),
             );
             if (result != null) setState(() => _filter = result);

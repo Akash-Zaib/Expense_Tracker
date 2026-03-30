@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/firebase/current_user_context.dart';
 import '../../domain/entities/expense_entry.dart';
 import '../../domain/usecases/add_transaction.dart';
 import '../../domain/usecases/get_transactions.dart';
@@ -13,6 +14,10 @@ class TransactionsStore extends ChangeNotifier {
   final UpdatePaidTo _updatePaidTo;
   final SplitAndAssign _splitAndAssign;
   final MoveTransactionToUser _moveTransactionToUser;
+  final CurrentUserContext _currentUserContext;
+
+  /// Tracks which UID `_transactions` belongs to (to avoid cross-user leakage).
+  String? _loadedForUid;
 
   TransactionsStore({
     required GetTransactions getTransactions,
@@ -20,11 +25,13 @@ class TransactionsStore extends ChangeNotifier {
     required UpdatePaidTo updatePaidTo,
     required SplitAndAssign splitAndAssign,
     required MoveTransactionToUser moveTransactionToUser,
+    required CurrentUserContext currentUserContext,
   }) : _getTransactions = getTransactions,
        _addTransaction = addTransaction,
        _updatePaidTo = updatePaidTo,
        _splitAndAssign = splitAndAssign,
-       _moveTransactionToUser = moveTransactionToUser;
+       _moveTransactionToUser = moveTransactionToUser,
+       _currentUserContext = currentUserContext;
 
   final List<ExpenseEntry> _transactions = [];
   bool _loading = false;
@@ -35,6 +42,15 @@ class TransactionsStore extends ChangeNotifier {
   String? get error => _error;
 
   Future<void> load({int limit = 200, bool force = false}) async {
+    final currentUid = _currentUserContext.uid;
+    final uidChanged = _loadedForUid != null && _loadedForUid != currentUid;
+    if (uidChanged) {
+      _transactions.clear();
+      _error = null;
+      force = true;
+    }
+    _loadedForUid = currentUid;
+
     if (_loading) return;
     if (!force && _transactions.isNotEmpty) return;
     _setLoading(true);
