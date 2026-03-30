@@ -9,6 +9,13 @@ abstract class BanksRepository {
   /// Firebase later: `set()` bank doc under the workspace.
   Future<void> addBank(Bank bank);
 
+  /// Same as [addBank] but writes under `users/{ownerUid}/banks`.
+  /// Used by Wallet "Belong to" UI.
+  Future<void> addBankForUid({
+    required String ownerUid,
+    required Bank bank,
+  });
+
   /// Firebase later: `delete()` bank doc. If using `isSubmitted`, you can
   /// enforce “cannot delete after submit” in Firestore rules too.
   Future<void> removeBank(String id);

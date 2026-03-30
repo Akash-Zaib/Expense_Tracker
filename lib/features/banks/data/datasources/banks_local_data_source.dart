@@ -37,12 +37,20 @@ class BanksLocalDataSourceImpl implements BanksLocalDataSource {
     final raw = prefs.getString(key);
     if (raw == null || raw.trim().isEmpty) return [];
 
+    final currentUid = _currentUserContext.uid;
+    final currentOwnerName = _currentUserContext.auth.currentUser?.displayName?.trim();
+    final fallbackOwnerName =
+        (currentOwnerName != null && currentOwnerName.isNotEmpty) ? currentOwnerName : 'User';
+
     final decoded = jsonDecode(raw);
     if (decoded is! List) return [];
 
     return decoded
         .whereType<Map>()
         .map((e) => BankModel.fromJson(Map<String, dynamic>.from(e)))
+        .map((b) => (b.ownerUid.trim().isEmpty)
+            ? b.copyWith(ownerUid: currentUid, ownerName: fallbackOwnerName)
+            : b)
         .where((b) => b.id.trim().isNotEmpty && b.name.trim().isNotEmpty)
         .toList(growable: false);
   }

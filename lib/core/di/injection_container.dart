@@ -37,6 +37,7 @@ import '../../features/banks/data/datasources/banks_remote_data_source.dart';
 import '../../features/banks/data/repositories/banks_repository_impl.dart';
 import '../../features/banks/domain/repositories/banks_repository.dart';
 import '../../features/banks/domain/usecases/add_bank.dart';
+import '../../features/banks/domain/usecases/add_bank_for_uid.dart';
 import '../../features/banks/domain/usecases/get_banks.dart';
 import '../../features/banks/domain/usecases/remove_bank.dart';
 import '../../features/banks/domain/usecases/submit_all_banks.dart';
@@ -131,14 +132,17 @@ Future<void> init() async {
   );
   sl.registerLazySingleton(() => GetBanks(sl()));
   sl.registerLazySingleton(() => AddBank(sl()));
+  sl.registerLazySingleton(() => AddBankForUid(sl()));
   sl.registerLazySingleton(() => RemoveBank(sl()));
   sl.registerLazySingleton(() => SubmitAllBanks(sl()));
   sl.registerFactory(
     () => BanksStore(
       getBanks: sl(),
       addBank: sl(),
+      addBankForUid: sl(),
       removeBank: sl(),
       submitAllBanks: sl(),
+      currentUserContext: sl(),
     ),
   );
 }

@@ -6,6 +6,8 @@ class BankModel extends Bank {
     required super.name,
     super.accountNumber,
     super.isSubmitted = false,
+    super.ownerUid = '',
+    super.ownerName = '',
   });
 
   factory BankModel.fromJson(Map<String, dynamic> json) {
@@ -16,6 +18,8 @@ class BankModel extends Bank {
           ? null
           : (json['accountNumber'] as String?),
       isSubmitted: (json['isSubmitted'] as bool?) ?? false,
+      ownerUid: (json['ownerUid'] ?? '').toString(),
+      ownerName: (json['ownerName'] ?? '').toString(),
     );
   }
 
@@ -24,12 +28,16 @@ class BankModel extends Bank {
     String? name,
     String? accountNumber,
     bool? isSubmitted,
+    String? ownerUid,
+    String? ownerName,
   }) {
     return BankModel(
       id: id ?? this.id,
       name: name ?? this.name,
       accountNumber: accountNumber ?? this.accountNumber,
       isSubmitted: isSubmitted ?? this.isSubmitted,
+      ownerUid: ownerUid ?? this.ownerUid,
+      ownerName: ownerName ?? this.ownerName,
     );
   }
 
@@ -39,6 +47,8 @@ class BankModel extends Bank {
       'name': name,
       'accountNumber': accountNumber,
       'isSubmitted': isSubmitted,
+      'ownerUid': ownerUid,
+      'ownerName': ownerName,
     };
   }
 }

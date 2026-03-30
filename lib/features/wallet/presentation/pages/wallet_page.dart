@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/firebase/users_directory_data_source.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../expense/presentation/store/transactions_store.dart';
 import '../../../banks/domain/entities/bank.dart';
 import '../../../banks/presentation/store/banks_store.dart';
@@ -17,13 +19,33 @@ class WalletPage extends StatefulWidget {
 class _WalletPageState extends State<WalletPage> {
   late final TransactionsStore _transactionsStore;
   late final BanksStore _banksStore;
+  StreamSubscription<User?>? _authSub;
 
   @override
   void initState() {
     super.initState();
     _transactionsStore = sl<TransactionsStore>();
     _banksStore = sl<BanksStore>();
+
     _banksStore.load();
+    _transactionsStore.load(force: true, limit: 2000);
+
+    final auth = sl<FirebaseAuth>();
+    String? lastUid;
+    _authSub = auth.authStateChanges().listen((user) {
+      final uid = user?.uid;
+      if (uid == null || uid.isEmpty) return;
+      if (lastUid == uid) return;
+      lastUid = uid;
+      _banksStore.load();
+      _transactionsStore.load(force: true, limit: 2000);
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
   }
 
   @override
@@ -31,17 +53,7 @@ class _WalletPageState extends State<WalletPage> {
     return AnimatedBuilder(
       animation: Listenable.merge([_transactionsStore, _banksStore]),
       builder: (context, _) {
-        final tx = _transactionsStore.transactions;
         final banks = _banksStore.banks;
-
-        final totalSpent = tx.fold<double>(
-          0,
-          (sum, e) => sum + (e.isCredit ? 0 : e.amount),
-        );
-        final totalReceived = tx.fold<double>(
-          0,
-          (sum, e) => sum + (e.isCredit ? e.amount : 0),
-        );
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(20.0),
@@ -54,7 +66,7 @@ class _WalletPageState extends State<WalletPage> {
               const SizedBox(height: 16),
               _buildQuickActions(),
               const SizedBox(height: 16),
-              _buildBanksSection(banks),
+              _buildBanksSection(allBanks: banks),
               const SizedBox(height: 80),
             ],
           ),
@@ -110,149 +122,6 @@ class _WalletPageState extends State<WalletPage> {
         //   ),
         // ),
       ],
-    );
-  }
-
-  Widget _buildBalanceCard({
-    required double totalSpent,
-    required double totalReceived,
-  }) {
-    final formatter = NumberFormat('#,##0', 'en_US');
-    final net = totalReceived - totalSpent;
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.25),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Net Balance',
-            style: AppTextStyles.caption.copyWith(
-              color: Colors.white.withValues(alpha: 0.9),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    formatter.format(net.abs()),
-                    style: AppTextStyles.heading1.copyWith(
-                      color: Colors.white,
-                      fontSize: 34,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  net >= 0 ? 'Positive' : 'Negative',
-                  style: AppTextStyles.caption.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _miniStat(
-                  label: 'Received',
-                  value: formatter.format(totalReceived),
-                  icon: Icons.arrow_downward,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _miniStat(
-                  label: 'Spent',
-                  value: formatter.format(totalSpent),
-                  icon: Icons.arrow_upward,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _miniStat({
-    required String label,
-    required String value,
-    required IconData icon,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.16),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 16, color: Colors.white),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: AppTextStyles.caption.copyWith(
-                    color: Colors.white.withValues(alpha: 0.9),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    value,
-                    style: AppTextStyles.bodyMedium.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -316,8 +185,7 @@ class _WalletPageState extends State<WalletPage> {
     );
   }
 
-  Widget _buildBanksSection(List<Bank> banks) {
-    final hasUnsubmitted = banks.any((b) => !b.isSubmitted);
+  Widget _buildBanksSection({required List<Bank> allBanks}) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -338,27 +206,12 @@ class _WalletPageState extends State<WalletPage> {
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             child: Row(
               children: [
-                Expanded(child: Text('My Banks', style: AppTextStyles.title)),
-                TextButton(
-                  onPressed: hasUnsubmitted
-                      ? () async {
-                          final messenger = ScaffoldMessenger.of(context);
-                          await _banksStore.submitAll();
-                          if (!mounted) return;
-                          messenger.showSnackBar(
-                            const SnackBar(
-                              content: Text('Submitted. Banks are now locked.'),
-                            ),
-                          );
-                        }
-                      : null,
-                  child: const Text('Submit'),
-                ),
+                Expanded(child: Text('Banks', style: AppTextStyles.title)),
               ],
             ),
           ),
           Divider(height: 1, color: AppColors.border.withValues(alpha: 0.9)),
-          if (banks.isEmpty)
+          if (allBanks.isEmpty)
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
@@ -367,12 +220,10 @@ class _WalletPageState extends State<WalletPage> {
               ),
             )
           else
-            ...banks.map(
+            ...allBanks.map(
               (b) => _BankRow(
                 bank: b,
-                onDelete: b.isSubmitted
-                    ? null
-                    : () => _banksStore.removeById(b.id),
+                onDelete: () => _banksStore.removeById(b.id),
               ),
             ),
         ],
@@ -404,12 +255,29 @@ class _AddBankBottomSheet extends StatefulWidget {
 class _AddBankBottomSheetState extends State<_AddBankBottomSheet> {
   late final TextEditingController _nameController;
   late final TextEditingController _accController;
+  late final UsersDirectoryDataSource _usersDirectory;
+
+  String? _selectedOwnerName;
+  String? _selectedOwnerUid;
+  Map<String, String> _uidByName = const {};
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController();
     _accController = TextEditingController();
+    _usersDirectory = sl<UsersDirectoryDataSource>();
+    _loadUsers();
+  }
+
+  Future<void> _loadUsers() async {
+    final map = await _usersDirectory.getAllProfilesByUid();
+    final users = map.values.toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    if (!mounted) return;
+    setState(() {
+      _uidByName = {for (final u in users) u.name: u.uid};
+    });
   }
 
   @override
@@ -453,6 +321,27 @@ class _AddBankBottomSheetState extends State<_AddBankBottomSheet> {
             const SizedBox(height: 8),
             Text('Add custom bank', style: AppTextStyles.caption),
             const SizedBox(height: 8),
+            Text('Belong to', style: AppTextStyles.caption),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: _selectedOwnerName,
+              items: _uidByName.entries
+                  .map(
+                    (e) => DropdownMenuItem<String>(
+                      value: e.key,
+                      child: Text(e.key),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (val) {
+                setState(() {
+                  _selectedOwnerName = val;
+                  _selectedOwnerUid = val == null ? null : _uidByName[val];
+                });
+              },
+              decoration: const InputDecoration(border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 10),
             TextField(
               controller: _nameController,
               textInputAction: TextInputAction.next,
@@ -475,13 +364,33 @@ class _AddBankBottomSheetState extends State<_AddBankBottomSheet> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () async {
+                  if (_selectedOwnerUid == null || _selectedOwnerName == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please select a user (Belong to)'),
+                      ),
+                    );
+                    return;
+                  }
                   final navigator = Navigator.of(context);
-                  await widget.banksStore.addNew(
-                    name: _nameController.text,
-                    accountNumber: _accController.text,
-                  );
-                  if (!mounted) return;
-                  navigator.pop(); // close after adding
+                  try {
+                    // Add bank under selected user in Firebase.
+                    // We only store owner's display name in the doc.
+                    await widget.banksStore.addNewForOwner(
+                      ownerUid: _selectedOwnerUid!,
+                      ownerName: _selectedOwnerName!,
+                      name: _nameController.text,
+                      accountNumber: _accController.text,
+                    );
+                    if (!mounted) return;
+                    await widget.banksStore.load();
+                    navigator.pop(); // close after adding
+                  } catch (e) {
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to add bank: $e')),
+                    );
+                  }
                 },
                 child: const Text('Add'),
               ),
@@ -505,6 +414,9 @@ class _BankRow extends StatelessWidget {
         bank.accountNumber == null || bank.accountNumber!.trim().isEmpty
         ? null
         : 'A/C: ${bank.accountNumber}';
+    final belongsTo = bank.ownerName.trim().isEmpty
+        ? null
+        : 'Belongs to: ${bank.ownerName}';
 
     return Column(
       children: [
@@ -535,6 +447,14 @@ class _BankRow extends StatelessWidget {
                       style: AppTextStyles.bodyMedium,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (belongsTo != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        belongsTo,
+                        style: AppTextStyles.caption,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                     if (subtitle != null) ...[
                       const SizedBox(height: 2),
                       Text(
@@ -547,15 +467,12 @@ class _BankRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              if (bank.isSubmitted)
-                Icon(Icons.lock, size: 18, color: AppColors.border)
-              else
-                IconButton(
-                  onPressed: onDelete,
-                  icon: const Icon(Icons.delete_outline),
-                  color: AppColors.redDark,
-                  tooltip: 'Delete',
-                ),
+              // IconButton(
+              //   onPressed: onDelete,
+              //   icon: const Icon(Icons.delete_outline),
+              //   color: AppColors.redDark,
+              //   tooltip: 'Delete',
+              // ),
             ],
           ),
         ),

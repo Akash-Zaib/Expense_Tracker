@@ -305,7 +305,9 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
       // Always allow cash source
       ...appBankOptions.where((b) => b.shortCode == 'Cash'),
       // Only show locked/submitted banks like Add Amount page
-      ..._banksStore.banks.where((b) => b.isSubmitted).map((b) {
+      ..._banksStore.banks
+          .where((b) => b.ownerUid == _currentUserContext.uid)
+          .map((b) {
         final short = b.name.trim().isEmpty
             ? 'BANK'
             : b.name.trim().split(' ').first;

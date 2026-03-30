@@ -12,13 +12,8 @@ class BanksRepositoryImpl implements BanksRepository {
 
   @override
   Future<List<Bank>> getBanks() async {
-    try {
-      final remote = await remoteDataSource.getBanks();
-      await localDataSource.saveBanks(remote);
-      return remote;
-    } catch (_) {
-      return localDataSource.getBanks();
-    }
+    // No local cache: always fetch from Firebase.
+    return remoteDataSource.getBanks();
   }
 
   @override
@@ -28,42 +23,35 @@ class BanksRepositoryImpl implements BanksRepository {
       name: bank.name,
       accountNumber: bank.accountNumber,
       isSubmitted: bank.isSubmitted,
+      ownerUid: bank.ownerUid,
+      ownerName: bank.ownerName,
     );
-    try {
-      await remoteDataSource.addBank(model);
-    } catch (_) {
-      // Keep local write so UX still works while offline.
-    }
-    final current = await localDataSource.getBanks();
-    await localDataSource.saveBanks([
-      model,
-      ...current.where((b) => b.id != bank.id),
-    ]);
+    await remoteDataSource.addBank(model);
+  }
+
+  @override
+  Future<void> addBankForUid({
+    required String ownerUid,
+    required Bank bank,
+  }) async {
+    final model = BankModel(
+      id: bank.id,
+      name: bank.name,
+      accountNumber: bank.accountNumber,
+      isSubmitted: bank.isSubmitted,
+      ownerUid: ownerUid,
+      ownerName: bank.ownerName,
+    );
+    await remoteDataSource.addBankForUid(ownerUid: ownerUid, bank: model);
   }
 
   @override
   Future<void> removeBank(String id) async {
-    try {
-      await remoteDataSource.removeBank(id);
-    } catch (_) {
-      // Continue local delete if remote is unavailable.
-    }
-    final current = await localDataSource.getBanks();
-    final updated = current.where((b) => b.id != id).toList(growable: false);
-    await localDataSource.saveBanks(updated);
+    await remoteDataSource.removeBank(id);
   }
 
   @override
   Future<void> submitAllBanks() async {
-    try {
-      await remoteDataSource.submitAllBanks();
-    } catch (_) {
-      // Keep local submission state if remote fails.
-    }
-    final current = await localDataSource.getBanks();
-    final updated = current
-        .map((b) => b.copyWith(isSubmitted: true))
-        .toList(growable: false);
-    await localDataSource.saveBanks(updated);
+    await remoteDataSource.submitAllBanks();
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/di/injection_container.dart';
+import '../../../../core/firebase/current_user_context.dart';
 import '../../../banks/presentation/store/banks_store.dart';
 import '../../../../shared/widgets/custom_button.dart';
 import '../../../../shared/widgets/custom_text_field.dart';
@@ -63,11 +64,13 @@ class _AddAmountPageState extends State<AddAmountPage> {
   final _descriptionController = TextEditingController();
   BankOption? _selectedBank;
   late final BanksStore _banksStore;
+  late final CurrentUserContext _currentUserContext;
 
   @override
   void initState() {
     super.initState();
     _banksStore = sl<BanksStore>();
+    _currentUserContext = sl<CurrentUserContext>();
     _banksStore.load();
   }
 
@@ -107,9 +110,12 @@ class _AddAmountPageState extends State<AddAmountPage> {
   }
 
   void _showBankSelectionSheet() {
+    final myUid = _currentUserContext.uid;
     final banks = <BankOption>[
       _cashOption,
-      ..._banksStore.banks.where((b) => b.isSubmitted).map((b) {
+      ..._banksStore.banks
+          .where((b) => b.ownerUid == myUid)
+          .map((b) {
         final short = b.name.trim().isEmpty ? 'BANK' : b.name.trim().split(' ').first;
         final acc = (b.accountNumber == null || b.accountNumber!.trim().isEmpty)
             ? null
