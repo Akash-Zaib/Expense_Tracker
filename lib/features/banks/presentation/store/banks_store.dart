@@ -95,14 +95,11 @@ class BanksStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> removeById(String id) async {
-    final Bank? bank = _banks.where((b) => b.id == id).isEmpty
-        ? null
-        : _banks.firstWhere((b) => b.id == id);
-    if (bank == null) return;
-
-    await removeBank(id);
-    _banks.removeWhere((b) => b.id == id);
+  Future<void> deleteBank(Bank bank) async {
+    await removeBank(bank);
+    _banks.removeWhere(
+      (b) => b.id == bank.id && b.ownerUid == bank.ownerUid,
+    );
     notifyListeners();
   }
 

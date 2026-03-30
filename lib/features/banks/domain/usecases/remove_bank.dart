@@ -1,3 +1,4 @@
+import '../entities/bank.dart';
 import '../repositories/banks_repository.dart';
 
 class RemoveBank {
@@ -5,6 +6,6 @@ class RemoveBank {
 
   const RemoveBank(this.repository);
 
-  Future<void> call(String id) => repository.removeBank(id);
+  Future<void> call(Bank bank) => repository.removeBank(bank);
 }
 

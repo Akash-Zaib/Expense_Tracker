@@ -18,7 +18,7 @@ abstract class BanksRepository {
 
   /// Firebase later: `delete()` bank doc. If using `isSubmitted`, you can
   /// enforce “cannot delete after submit” in Firestore rules too.
-  Future<void> removeBank(String id);
+  Future<void> removeBank(Bank bank);
 
   /// Firebase later: batch update all bank docs `isSubmitted=true`.
   Future<void> submitAllBanks();

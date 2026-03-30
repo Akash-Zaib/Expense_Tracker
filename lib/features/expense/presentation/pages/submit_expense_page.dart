@@ -304,23 +304,26 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
     final banks = <BankOption>[
       // Always allow cash source
       ...appBankOptions.where((b) => b.shortCode == 'Cash'),
-      // Only show locked/submitted banks like Add Amount page
-      ..._banksStore.banks
-          .where((b) => b.ownerUid == _currentUserContext.uid)
-          .map((b) {
+      // All users' banks (same list as Wallet / collection group).
+      ..._banksStore.banks.map((b) {
         final short = b.name.trim().isEmpty
             ? 'BANK'
             : b.name.trim().split(' ').first;
         final acc = (b.accountNumber == null || b.accountNumber!.trim().isEmpty)
             ? null
             : 'A/C: ${b.accountNumber}';
+        final belongs = b.ownerName.trim();
+        final subtitleParts = <String>[];
+        if (belongs.isNotEmpty) subtitleParts.add('Belongs to: $belongs');
+        if (acc != null) subtitleParts.add(acc);
         return BankOption(
           name: b.name,
           shortCode: short,
+          selectionKey: '${b.ownerUid}::${b.id}',
           icon: Icons.account_balance,
           iconBgColor: const Color(0xFFE3F2FD),
           iconColor: AppColors.primary,
-          subtitle: acc,
+          subtitle: subtitleParts.isEmpty ? null : subtitleParts.join(' · '),
         );
       }),
     ];
@@ -796,7 +799,8 @@ class _BankSelectionSheet extends StatelessWidget {
                 ),
                 itemBuilder: (context, index) {
                   final bank = banks[index];
-                  final isSelected = selectedBank?.name == bank.name;
+                  final isSelected =
+                      selectedBank?.selectionKey == bank.selectionKey;
                   return ListTile(
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 20,

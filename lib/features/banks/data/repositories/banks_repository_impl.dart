@@ -46,8 +46,8 @@ class BanksRepositoryImpl implements BanksRepository {
   }
 
   @override
-  Future<void> removeBank(String id) async {
-    await remoteDataSource.removeBank(id);
+  Future<void> removeBank(Bank bank) async {
+    await remoteDataSource.removeBank(bank);
   }
 
   @override

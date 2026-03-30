@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../../../core/firebase/firestore_user_scope.dart';
+import '../../domain/entities/bank.dart';
 import '../models/bank_model.dart';
 
 abstract class BanksRemoteDataSource {
@@ -10,7 +11,7 @@ abstract class BanksRemoteDataSource {
     required String ownerUid,
     required BankModel bank,
   });
-  Future<void> removeBank(String id);
+  Future<void> removeBank(Bank bank);
   Future<void> submitAllBanks();
 }
 
@@ -21,31 +22,45 @@ class BanksRemoteDataSourceImpl implements BanksRemoteDataSource {
 
   @override
   Future<List<BankModel>> getBanks() async {
-    // Without permission to read other users' subcollections, we only read:
-    //   users/{currentUid}/banks
-    final snapshot = await _userScope.banksCollection().get();
+    // All `users/{uid}/banks` subcollections (requires global read on banks).
+    final snapshot =
+        await _userScope.firestore.collectionGroup('banks').get();
 
     final currentName =
         _userScope.auth.currentUser?.displayName?.trim();
-    final uid = _userScope.requiredUid;
     final fallbackOwnerName =
         (currentName != null && currentName.isNotEmpty) ? currentName : 'User';
 
-    return snapshot.docs.map((doc) {
+    final list = snapshot.docs.where((doc) {
+      final parts = doc.reference.path.split('/');
+      return parts.length >= 4 &&
+          parts[0] == 'users' &&
+          parts[2] == 'banks';
+    }).map((doc) {
+      final pathParts = doc.reference.path.split('/');
+      final pathUid = pathParts[1];
       final data = doc.data();
+      final ownerNameRaw = (data['ownerName'] ?? '').toString().trim();
       final ownerName =
-          (data['ownerName'] ?? fallbackOwnerName).toString();
+          ownerNameRaw.isNotEmpty ? ownerNameRaw : fallbackOwnerName;
 
-      // We do NOT rely on ownerUid existing in Firestore. Only ownerName is
-      // stored as the "Belong to" string.
       return BankModel.fromJson({
         'id': doc.id,
         ...data,
-        // If older docs missing `ownerUid`, infer it from the path we read.
-        'ownerUid': (data['ownerUid'] ?? uid).toString(),
+        // Path owner: whose `users/{uid}/banks` this doc lives under (delete + filters).
+        'ownerUid': pathUid,
         'ownerName': ownerName,
       });
-    }).toList(growable: false);
+    }).toList(growable: true);
+
+    list.sort((a, b) {
+      final byOwner =
+          a.ownerName.toLowerCase().compareTo(b.ownerName.toLowerCase());
+      if (byOwner != 0) return byOwner;
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+
+    return list;
   }
 
   @override
@@ -95,8 +110,13 @@ class BanksRemoteDataSourceImpl implements BanksRemoteDataSource {
   }
 
   @override
-  Future<void> removeBank(String id) {
-    return _userScope.banksCollection().doc(id).delete();
+  Future<void> removeBank(Bank bank) {
+    return _userScope.firestore
+        .collection('users')
+        .doc(bank.ownerUid)
+        .collection('banks')
+        .doc(bank.id)
+        .delete();
   }
 
   @override

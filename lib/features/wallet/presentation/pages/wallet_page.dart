@@ -223,7 +223,7 @@ class _WalletPageState extends State<WalletPage> {
             ...allBanks.map(
               (b) => _BankRow(
                 bank: b,
-                onDelete: () => _banksStore.removeById(b.id),
+                onDelete: () => _banksStore.deleteBank(b),
               ),
             ),
         ],

@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/di/injection_container.dart';
-import '../../../../core/firebase/current_user_context.dart';
 import '../../../banks/presentation/store/banks_store.dart';
 import '../../../../shared/widgets/custom_button.dart';
 import '../../../../shared/widgets/custom_text_field.dart';
@@ -24,6 +23,8 @@ class AddAmountResult {
 class BankOption {
   final String name;
   final String shortCode;
+  /// Stable id for selection when multiple users have the same [name].
+  final String selectionKey;
   final IconData icon;
   final Color iconBgColor;
   final Color iconColor;
@@ -32,6 +33,7 @@ class BankOption {
   const BankOption({
     required this.name,
     required this.shortCode,
+    required this.selectionKey,
     required this.icon,
     required this.iconBgColor,
     required this.iconColor,
@@ -42,6 +44,7 @@ class BankOption {
 const BankOption _cashOption = BankOption(
   name: 'By Cash',
   shortCode: 'Cash',
+  selectionKey: '__cash__',
   icon: Icons.monetization_on,
   iconBgColor: Color(0xFFE8F5E9),
   iconColor: Color(0xFF4CAF50),
@@ -64,13 +67,11 @@ class _AddAmountPageState extends State<AddAmountPage> {
   final _descriptionController = TextEditingController();
   BankOption? _selectedBank;
   late final BanksStore _banksStore;
-  late final CurrentUserContext _currentUserContext;
 
   @override
   void initState() {
     super.initState();
     _banksStore = sl<BanksStore>();
-    _currentUserContext = sl<CurrentUserContext>();
     _banksStore.load();
   }
 
@@ -110,23 +111,25 @@ class _AddAmountPageState extends State<AddAmountPage> {
   }
 
   void _showBankSelectionSheet() {
-    final myUid = _currentUserContext.uid;
     final banks = <BankOption>[
       _cashOption,
-      ..._banksStore.banks
-          .where((b) => b.ownerUid == myUid)
-          .map((b) {
+      ..._banksStore.banks.map((b) {
         final short = b.name.trim().isEmpty ? 'BANK' : b.name.trim().split(' ').first;
         final acc = (b.accountNumber == null || b.accountNumber!.trim().isEmpty)
             ? null
             : 'A/C: ${b.accountNumber}';
+        final belongs = b.ownerName.trim();
+        final subtitleParts = <String>[];
+        if (belongs.isNotEmpty) subtitleParts.add('Belongs to: $belongs');
+        if (acc != null) subtitleParts.add(acc);
         return BankOption(
           name: b.name,
           shortCode: short,
+          selectionKey: '${b.ownerUid}::${b.id}',
           icon: Icons.account_balance,
           iconBgColor: const Color(0xFFE3F2FD),
           iconColor: AppColors.primary,
-          subtitle: acc,
+          subtitle: subtitleParts.isEmpty ? null : subtitleParts.join(' · '),
         );
       }),
     ];
@@ -378,7 +381,8 @@ class _BankSelectionSheet extends StatelessWidget {
                     const Divider(height: 1, indent: 72),
                 itemBuilder: (context, index) {
                   final bank = banks[index];
-                  final isSelected = selectedBank?.name == bank.name;
+                  final isSelected =
+                      selectedBank?.selectionKey == bank.selectionKey;
                   return ListTile(
                     contentPadding:
                         const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
