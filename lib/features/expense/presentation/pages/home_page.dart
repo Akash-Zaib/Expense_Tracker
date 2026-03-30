@@ -15,7 +15,7 @@ import '../../../analytics/presentation/pages/analytics_page.dart';
 import '../../../wallet/presentation/pages/wallet_page.dart';
 import '../../domain/entities/expense_entry.dart';
 import 'add_amount_page.dart';
-import 'amount_added_by_user_page.dart';
+import 'bank_balances_page.dart';
 import '../store/transactions_store.dart';
 
 class HomePage extends StatefulWidget {
@@ -291,10 +291,9 @@ class _HomePageState extends State<HomePage> {
             Navigator.push(
               context,
               MaterialPageRoute<void>(
-                builder: (context) => AmountAddedByUserPage(
+                builder: (context) => BankBalancesPage(
                   displayUsers: displayUsers,
                   uidByNormalizedName: uidByNormalizedName,
-                  userColorByName: userColorByName,
                 ),
               ),
             );

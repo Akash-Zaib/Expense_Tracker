@@ -36,6 +36,44 @@ class AmountAddedByUserPage extends StatefulWidget {
     return e.ownerName.trim().toLowerCase().trim() == normalized;
   }
 
+  static bool _entryMatchesOwner({
+    required ExpenseEntry entry,
+    required String ownerUid,
+    required String ownerName,
+  }) {
+    final eUid = entry.ownerUid.trim();
+    if (eUid.isNotEmpty) return eUid == ownerUid;
+    return entry.ownerName.trim().toLowerCase() == ownerName.trim().toLowerCase();
+  }
+
+  /// Remaining for a given owner + source label (bank name or [cashSourceLabel]).
+  static double remainingForOwnerAndSource({
+    required String ownerUid,
+    required String ownerName,
+    required String bankLabel,
+    required List<ExpenseEntry> entries,
+  }) {
+    final label = bankLabel.trim().isEmpty ? cashSourceLabel : bankLabel.trim();
+
+    double added = 0;
+    double spent = 0;
+
+    for (final e in entries) {
+      if (!_entryMatchesOwner(entry: e, ownerUid: ownerUid, ownerName: ownerName)) {
+        continue;
+      }
+      final src = sourceLabel(e);
+      if (src != label) continue;
+
+      if (e.kind == ExpenseEntryKind.amountAdded) {
+        added += e.amount;
+      } else if (e.kind == ExpenseEntryKind.expense && !e.isCredit) {
+        spent += e.amount;
+      }
+    }
+    return added - spent;
+  }
+
   static String sourceLabel(ExpenseEntry e) {
     return (e.bankName ?? '').trim().isEmpty ? 'By Cash' : e.bankName!.trim();
   }
