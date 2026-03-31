@@ -31,42 +31,42 @@ class CategoryOption {
 
 /// Predefined expense categories matching the screenshot.
 final List<CategoryOption> appCategoryOptions = [
-  const CategoryOption(
-    name: 'Office Supplies',
-    icon: Icons.shopping_cart,
-    iconBgColor: Color(0xFFE3F2FD),
-    iconColor: Color(0xFF1565C0),
-  ),
+  // const CategoryOption(
+  //   name: 'Office Supplies',
+  //   icon: Icons.shopping_cart,
+  //   iconBgColor: Color(0xFFE3F2FD),
+  //   iconColor: Color(0xFF1565C0),
+  // ),
   const CategoryOption(
     name: 'Personal Expense',
     icon: Icons.home,
     iconBgColor: Color(0xFFFFEBEE),
-    iconColor: Color(0xFFC62828),
+    iconColor: Color.fromARGB(255, 40, 108, 198),
   ),
-  const CategoryOption(
-    name: 'Transport',
-    icon: Icons.local_shipping,
-    iconBgColor: Color(0xFFF3E5F5),
-    iconColor: Color(0xFF6A1B9A),
-  ),
-  const CategoryOption(
-    name: 'Electricity',
-    icon: Icons.bolt,
-    iconBgColor: Color(0xFFE8F5E9),
-    iconColor: Color(0xFF2E7D32),
-  ),
-  const CategoryOption(
-    name: 'Miscellaneous Expenses',
-    icon: Icons.grid_view,
-    iconBgColor: Color(0xFFE3F2FD),
-    iconColor: Color(0xFF1976D2),
-  ),
-  const CategoryOption(
-    name: 'Food & Dining',
-    icon: Icons.restaurant,
-    iconBgColor: Color(0xFFFFF3E0),
-    iconColor: Color(0xFFE65100),
-  ),
+  // const CategoryOption(
+  //   name: 'Transport',
+  //   icon: Icons.local_shipping,
+  //   iconBgColor: Color(0xFFF3E5F5),
+  //   iconColor: Color(0xFF6A1B9A),
+  // ),
+  // const CategoryOption(
+  //   name: 'Electricity',
+  //   icon: Icons.bolt,
+  //   iconBgColor: Color(0xFFE8F5E9),
+  //   iconColor: Color(0xFF2E7D32),
+  // ),
+  // const CategoryOption(
+  //   name: 'Miscellaneous Expenses',
+  //   icon: Icons.grid_view,
+  //   iconBgColor: Color(0xFFE3F2FD),
+  //   iconColor: Color(0xFF1976D2),
+  // ),
+  // const CategoryOption(
+  //   name: 'Food & Dining',
+  //   icon: Icons.restaurant,
+  //   iconBgColor: Color(0xFFFFF3E0),
+  //   iconColor: Color(0xFFE65100),
+  // ),
 ];
 
 class SubmitExpensePage extends StatefulWidget {
@@ -77,26 +77,35 @@ class SubmitExpensePage extends StatefulWidget {
 }
 
 class _SubmitExpensePageState extends State<SubmitExpensePage> {
-  static const String _kOfficeSuppliesCategory = 'Office Supplies';
-
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
   String? _selectedCategory;
   BankOption? _selectedBank;
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
-  String _selectedPaidTo = '';
-  List<String> _paidToTargets = const [];
 
-  /// All registered users (sorted) — used when category is Office Supplies.
+  /// All registered users (sorted) shown in category bottom sheet.
   List<String> _registeredUserNames = const [];
 
-  /// For Office Supplies: which user this expense is assigned to (paidTo).
-  String? _officeSuppliesAssigneeName;
+  /// Optional assignee selected in category bottom sheet.
+  String? _selectedAssigneeName;
   late final BanksStore _banksStore;
   late final CurrentUserContext _currentUserContext;
   late final UsersDirectoryDataSource _usersDirectory;
   late final TransactionsStore _transactionsStore;
+
+  String _toUpperCamelWords(String input) {
+    final normalized = input.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized.isEmpty) return '';
+    return normalized
+        .split(' ')
+        .where((word) => word.isNotEmpty)
+        .map(
+          (word) =>
+              '${word.substring(0, 1).toUpperCase()}${word.substring(1).toLowerCase()}',
+        )
+        .join(' ');
+  }
 
   @override
   void initState() {
@@ -181,26 +190,6 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
       return;
     }
 
-    if (_selectedCategory == _kOfficeSuppliesCategory) {
-      final assignee = _officeSuppliesAssigneeName?.trim() ?? '';
-      if (assignee.isEmpty) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'Office Supplies: select which user this expense is for.',
-            ),
-            backgroundColor: AppColors.redDark,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
-        return;
-      }
-    }
-
     await _ensureTransactionsLoaded();
     final ownerNameEarly = await _currentUserContext.resolvedName();
     if (!mounted) return;
@@ -210,35 +199,36 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
       ownerNameEarly.toLowerCase().trim(): _currentUserContext.uid,
     };
     final bankLabel = (_selectedBank?.name ?? '').trim();
-    final isCash =
-        bankLabel.isEmpty || bankLabel == AmountAddedByUserPage.cashSourceLabel;
-
-    if (!isCash) {
-      final remaining = AmountAddedByUserPage.remainingForBankSourceRaw(
-        displayName: ownerNameEarly,
-        bankLabel: bankLabel,
-        entries: txs,
-        uidByNormalizedName: uidMap,
-      );
-      if (amount > remaining) {
-        final fmt = NumberFormat('#,##0', 'en_US');
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              remaining <= 0
-                  ? 'You have not added money from this bank. Add funds first or choose By Cash.'
-                  : 'Only ${fmt.format(remaining)} available for this bank.',
-            ),
-            backgroundColor: AppColors.redDark,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
+    final sourceLabel = bankLabel.isEmpty
+        ? AmountAddedByUserPage.cashSourceLabel
+        : bankLabel;
+    final isCash = sourceLabel == AmountAddedByUserPage.cashSourceLabel;
+    final remainingForSource = AmountAddedByUserPage.remainingForBankSourceRaw(
+      displayName: ownerNameEarly,
+      bankLabel: sourceLabel,
+      entries: txs,
+      uidByNormalizedName: uidMap,
+    );
+    if (amount > remainingForSource) {
+      final fmt = NumberFormat('#,##0', 'en_US');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            remainingForSource <= 0
+                ? (isCash
+                      ? 'You have not added cash yet. Add amount first.'
+                      : 'You have not added money from this bank. Add funds first or choose By Cash.')
+                : 'Only ${fmt.format(remainingForSource)} available for $sourceLabel.',
           ),
-        );
-        return;
-      }
+          backgroundColor: AppColors.redDark,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
     }
 
     final availableBalance = txs.fold<double>(
@@ -256,14 +246,13 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
     final ownerUid = _currentUserContext.uid;
     final ownerName = ownerNameEarly;
     if (!mounted) return;
-    final paidTo = _selectedCategory == _kOfficeSuppliesCategory
-        ? (_officeSuppliesAssigneeName?.trim().isNotEmpty == true
-              ? _officeSuppliesAssigneeName!.trim()
-              : ownerName)
-        : (_selectedPaidTo.trim().isEmpty ? ownerName : _selectedPaidTo);
+    final paidTo = _selectedAssigneeName?.trim().isNotEmpty == true
+        ? _selectedAssigneeName!.trim()
+        : ownerName;
+    final typedDescription = _descriptionController.text.trim();
     final entry = ExpenseEntry(
-      description: _descriptionController.text.isNotEmpty
-          ? _descriptionController.text
+      description: typedDescription.isNotEmpty
+          ? _toUpperCamelWords(typedDescription)
           : (_selectedCategory ?? 'Expense'),
       amount: amount,
       category: _selectedCategory ?? 'Miscellaneous Expenses',
@@ -283,7 +272,6 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
   }
 
   Future<void> _loadPaidToTargetsAndDirectory() async {
-    final ownerName = await _currentUserContext.resolvedName();
     final profiles = await _usersDirectory.getAllProfilesByUid();
     final unique = <String>{};
     for (final profile in profiles.values) {
@@ -294,9 +282,11 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     if (!mounted) return;
     setState(() {
-      _selectedPaidTo = '';
-      _paidToTargets = [ownerName, ...unique.where((u) => u != ownerName)];
       _registeredUserNames = sortedAll;
+      if (_selectedAssigneeName != null &&
+          !_registeredUserNames.contains(_selectedAssigneeName)) {
+        _selectedAssigneeName = null;
+      }
     });
   }
 
@@ -397,110 +387,16 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
       builder: (ctx) {
         return _CategorySelectionSheet(
           categories: appCategoryOptions,
+          assigneeOptions: _registeredUserNames,
           selectedCategory: _selectedCategory,
-          onSelected: (category) {
+          selectedAssignee: _selectedAssigneeName,
+          onSelected: ({required category, assignee}) {
             setState(() {
               _selectedCategory = category;
-              if (category != _kOfficeSuppliesCategory) {
-                _officeSuppliesAssigneeName = null;
-              }
+              _selectedAssigneeName = assignee;
             });
             Navigator.pop(ctx);
-            if (category == _kOfficeSuppliesCategory) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                _showOfficeSuppliesAssigneeSheet();
-              });
-            }
           },
-        );
-      },
-    );
-  }
-
-  void _showOfficeSuppliesAssigneeSheet() {
-    final names = _registeredUserNames;
-    if (names.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('No registered users found.'),
-          backgroundColor: AppColors.redDark,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-      return;
-    }
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        final maxH = MediaQuery.of(ctx).size.height * 0.55;
-        return SafeArea(
-          child: Padding(
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
-              top: 12,
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
-            ),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: maxH),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Text('Assign expense to', style: AppTextStyles.heading3),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Office Supplies — choose which user this amount applies to.',
-                    style: AppTextStyles.caption,
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: ListView.separated(
-                      itemCount: names.length,
-                      separatorBuilder: (context, index) =>
-                          const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final name = names[index];
-                        final selected = _officeSuppliesAssigneeName == name;
-                        return ListTile(
-                          title: Text(name, style: AppTextStyles.bodyMedium),
-                          trailing: selected
-                              ? const Icon(
-                                  Icons.check_circle,
-                                  color: AppColors.primary,
-                                )
-                              : null,
-                          onTap: () {
-                            setState(() => _officeSuppliesAssigneeName = name);
-                            Navigator.pop(ctx);
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
         );
       },
     );
@@ -569,22 +465,6 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
                 isSelected: _selectedCategory != null,
                 onTap: _showCategorySelectionSheet,
               ),
-              if (_selectedCategory == _kOfficeSuppliesCategory) ...[
-                const SizedBox(height: 20),
-                _buildLabel('Assign to user'),
-                _buildSelectionField(
-                  text:
-                      (_officeSuppliesAssigneeName == null ||
-                          _officeSuppliesAssigneeName!.trim().isEmpty)
-                      ? 'Select user'
-                      : _officeSuppliesAssigneeName!,
-                  icon: Icons.person_outline,
-                  isSelected:
-                      _officeSuppliesAssigneeName != null &&
-                      _officeSuppliesAssigneeName!.trim().isNotEmpty,
-                  onTap: _showOfficeSuppliesAssigneeSheet,
-                ),
-              ],
               const SizedBox(height: 20),
 
               // Bank (Bottom Sheet)
@@ -596,17 +476,6 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
                 onTap: _showBankSelectionSheet,
               ),
               const SizedBox(height: 20),
-
-              // _buildLabel('Paid To'),
-              // _buildSelectionField(
-              //   text: _selectedPaidTo.trim().isEmpty
-              //       ? 'Optional (Self/Personal by default)'
-              //       : _selectedPaidTo,
-              //   icon: Icons.person_outline,
-              //   isSelected: _selectedPaidTo.trim().isNotEmpty,
-              //   onTap: _showPaidToSelectionSheet,
-              // ),
-              // const SizedBox(height: 20),
 
               // Date
               _buildLabel('Transaction Date'),
@@ -719,95 +588,6 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
           ),
         ),
       ),
-    );
-  }
-
-  // Kept for optional "Paid To" UI if re-enabled in the form.
-  // ignore: unused_element
-  void _showPaidToSelectionSheet() {
-    final targets = _paidToTargets;
-    if (targets.isEmpty) return;
-    final ownerName = targets.first;
-    final options = <String>['Self (Personal)', ...targets];
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Select Paid To', style: AppTextStyles.heading3),
-                ),
-                const SizedBox(height: 10),
-                Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: options.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final option = options[index];
-                      final isSelf = option == 'Self (Personal)';
-                      final targetValue = isSelf ? '' : option;
-                      final selected =
-                          (isSelf && _selectedPaidTo.trim().isEmpty) ||
-                          (!isSelf && _selectedPaidTo == targetValue);
-                      return Material(
-                        color: selected
-                            ? AppColors.primary.withValues(alpha: 0.08)
-                            : AppColors.background,
-                        borderRadius: BorderRadius.circular(12),
-                        child: ListTile(
-                          leading: Icon(
-                            isSelf ? Icons.person : Icons.business,
-                            color: selected
-                                ? AppColors.primary
-                                : AppColors.textSecondary,
-                          ),
-                          title: Text(
-                            isSelf ? option : option,
-                            style: AppTextStyles.bodyMedium,
-                          ),
-                          subtitle: isSelf
-                              ? Text(ownerName, style: AppTextStyles.caption)
-                              : null,
-                          trailing: selected
-                              ? const Icon(
-                                  Icons.check_circle,
-                                  color: AppColors.primary,
-                                )
-                              : null,
-                          onTap: () {
-                            setState(() => _selectedPaidTo = targetValue);
-                            Navigator.pop(ctx);
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 
@@ -943,7 +723,7 @@ class _BankSelectionSheet extends StatelessWidget {
                 shrinkWrap: true,
                 padding: const EdgeInsets.fromLTRB(0, 8, 0, 72),
                 itemCount: banks.length,
-                separatorBuilder: (_, __) => const Divider(
+                separatorBuilder: (context, index) => const Divider(
                   height: 1,
                   indent: 76,
                   endIndent: 20,
@@ -1017,12 +797,16 @@ class _BankSelectionSheet extends StatelessWidget {
 // ── Category Selection Bottom Sheet ──────────────────────────────
 class _CategorySelectionSheet extends StatefulWidget {
   final List<CategoryOption> categories;
+  final List<String> assigneeOptions;
   final String? selectedCategory;
-  final ValueChanged<String> onSelected;
+  final String? selectedAssignee;
+  final void Function({required String category, String? assignee}) onSelected;
 
   const _CategorySelectionSheet({
     required this.categories,
+    required this.assigneeOptions,
     required this.selectedCategory,
+    required this.selectedAssignee,
     required this.onSelected,
   });
 
@@ -1043,7 +827,8 @@ class _CategorySelectionSheetState extends State<_CategorySelectionSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final maxHeight = MediaQuery.of(context).size.height * 0.65;
+    final maxHeight = MediaQuery.of(context).size.height * 0.9;
+    final bottomSafe = MediaQuery.of(context).padding.bottom;
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: maxHeight),
       child: Padding(
@@ -1051,7 +836,7 @@ class _CategorySelectionSheetState extends State<_CategorySelectionSheet> {
           top: 12,
           left: 16,
           right: 16,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          bottom: MediaQuery.of(context).viewInsets.bottom + bottomSafe + 20,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1066,137 +851,255 @@ class _CategorySelectionSheetState extends State<_CategorySelectionSheet> {
               ),
             ),
             const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Purpose', style: AppTextStyles.heading3),
+            ),
+            const SizedBox(height: 20),
             Flexible(
-              child: ListView.separated(
+              flex: 1,
+              child: ListView.builder(
                 shrinkWrap: true,
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: EdgeInsets.zero,
                 itemCount: widget.categories.length,
-                separatorBuilder: (_, __) => const Divider(
-                  height: 1,
-                  indent: 76,
-                  endIndent: 20,
-                  color: _silverDivider,
-                ),
                 itemBuilder: (context, index) {
                   final cat = widget.categories[index];
                   final isSelected = widget.selectedCategory == cat.name;
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 4,
-                    ),
-                    leading: Container(
-                      width: 40,
-                      height: 40,
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Container(
                       decoration: BoxDecoration(
-                        color: cat.iconBgColor,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(cat.icon, color: cat.iconColor, size: 20),
-                    ),
-                    title: Text(
-                      cat.name,
-                      style: AppTextStyles.bodyMedium,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: Container(
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
+                        borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: isSelected
-                              ? AppColors.primary
-                              : AppColors.textSecondary.withValues(alpha: 0.4),
-                          width: 2,
+                              ? AppColors.primary.withValues(alpha: 0.55)
+                              : _silverDivider,
                         ),
                         color: isSelected
-                            ? AppColors.primary
-                            : Colors.transparent,
+                            ? AppColors.primary.withValues(alpha: 0.08)
+                            : Colors.white,
                       ),
-                      child: isSelected
-                          ? const Icon(
-                              Icons.check,
-                              size: 14,
-                              color: Colors.white,
-                            )
-                          : null,
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 4,
+                        ),
+                        leading: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: cat.iconBgColor,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(cat.icon, color: cat.iconColor, size: 20),
+                        ),
+                        title: Text(
+                          cat.name,
+                          style: AppTextStyles.bodyMedium,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: Container(
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.primary
+                                  : AppColors.textSecondary.withValues(
+                                      alpha: 0.4,
+                                    ),
+                              width: 2,
+                            ),
+                            color: isSelected
+                                ? AppColors.primary
+                                : Colors.transparent,
+                          ),
+                          child: isSelected
+                              ? const Icon(
+                                  Icons.check,
+                                  size: 14,
+                                  color: Colors.white,
+                                )
+                              : null,
+                        ),
+                        onTap: () => widget.onSelected(
+                          category: cat.name,
+                          assignee: null,
+                        ),
+                      ),
                     ),
-                    onTap: () => widget.onSelected(cat.name),
                   );
                 },
               ),
             ),
+            if (widget.assigneeOptions.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Flexible(
+                flex: 2,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  padding: EdgeInsets.zero,
+                  itemCount: widget.assigneeOptions.length,
+                  itemBuilder: (context, index) {
+                    final name = widget.assigneeOptions[index];
+                    final selected =
+                        widget.selectedCategory == name &&
+                        widget.selectedAssignee == name;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: selected
+                                ? AppColors.primary
+                                : _silverDivider,
+                          ),
+                          color: selected
+                              ? AppColors.primary.withValues(alpha: 0.08)
+                              : Colors.white,
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 4,
+                          ),
+                          leading: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.person_outline_rounded,
+                              color: AppColors.primary,
+                              size: 20,
+                            ),
+                          ),
+                          title: Text(
+                            name,
+                            style: AppTextStyles.bodyMedium,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Container(
+                            width: 22,
+                            height: 22,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: selected
+                                    ? AppColors.primary
+                                    : AppColors.textSecondary.withValues(
+                                        alpha: 0.4,
+                                      ),
+                                width: 2,
+                              ),
+                              color: selected
+                                  ? AppColors.primary
+                                  : Colors.transparent,
+                            ),
+                            child: selected
+                                ? const Icon(
+                                    Icons.check,
+                                    size: 14,
+                                    color: Colors.white,
+                                  )
+                                : null,
+                          ),
+                          onTap: () {
+                            widget.onSelected(category: name, assignee: name);
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
             // Add Custom Category section
             Padding(
               padding: const EdgeInsets.only(
-                left: 20,
-                right: 20,
+                left: 2,
+                right: 2,
                 top: 16,
-                bottom: 24,
+                bottom: 12,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Add Custom Category',
-                    style: AppTextStyles.caption.copyWith(
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.textPrimary,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _silverDivider),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Add Custom Category',
+                      style: AppTextStyles.caption.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: AppColors.inputBackground,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: TextField(
-                            controller: _customCategoryController,
-                            style: AppTextStyles.bodyMedium,
-                            decoration: InputDecoration(
-                              hintText: 'Enter Expense Category',
-                              hintStyle: AppTextStyles.bodyRegular.copyWith(
-                                color: AppColors.textSecondary,
-                              ),
-                              border: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 12,
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: AppColors.inputBackground,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.border),
+                            ),
+                            child: TextField(
+                              controller: _customCategoryController,
+                              style: AppTextStyles.bodyMedium,
+                              decoration: InputDecoration(
+                                hintText: 'Enter Expense Category',
+                                hintStyle: AppTextStyles.bodyRegular.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                                border: InputBorder.none,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      GestureDetector(
-                        onTap: () {
-                          final custom = _customCategoryController.text.trim();
-                          if (custom.isNotEmpty) {
-                            widget.onSelected(custom);
-                          }
-                        },
-                        child: Container(
-                          width: 44,
-                          height: 44,
-                          decoration: BoxDecoration(
-                            color: AppColors.primary,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.add,
-                            color: Colors.white,
-                            size: 22,
+                        const SizedBox(width: 10),
+                        GestureDetector(
+                          onTap: () {
+                            final custom = _customCategoryController.text
+                                .trim();
+                            if (custom.isNotEmpty) {
+                              widget.onSelected(
+                                category: custom,
+                                assignee: null,
+                              );
+                            }
+                          },
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.add,
+                              color: Colors.white,
+                              size: 22,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

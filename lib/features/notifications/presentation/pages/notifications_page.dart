@@ -15,7 +15,10 @@ class NotificationsPage extends StatelessWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            color: AppColors.textPrimary,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('Notifications', style: AppTextStyles.title),
@@ -176,10 +179,7 @@ class _NotificationRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  data.subtitle,
-                  style: AppTextStyles.caption,
-                ),
+                Text(data.subtitle, style: AppTextStyles.caption),
                 const SizedBox(height: 6),
                 Row(
                   children: [
@@ -248,4 +248,3 @@ class _NotificationItemData {
     required this.metaRight,
   });
 }
-

@@ -91,19 +91,22 @@ class _BankBalancesPageState extends State<BankBalancesPage> {
             }
 
             bool hasAnyForSource(String sourceLabel) {
-              return txs.any((e) =>
-                  ownerMatches(e) &&
-                  AmountAddedByUserPage.sourceLabel(e) == sourceLabel);
+              return txs.any(
+                (e) =>
+                    ownerMatches(e) &&
+                    AmountAddedByUserPage.sourceLabel(e) == sourceLabel,
+              );
             }
 
             // By Cash row per user (only if non-zero OR has any matching tx)
             final cashLabel = AmountAddedByUserPage.cashSourceLabel;
-            final cashRemaining = AmountAddedByUserPage.remainingForOwnerAndSource(
-              ownerUid: uid,
-              ownerName: userName,
-              bankLabel: cashLabel,
-              entries: txs,
-            );
+            final cashRemaining =
+                AmountAddedByUserPage.remainingForOwnerAndSource(
+                  ownerUid: uid,
+                  ownerName: userName,
+                  bankLabel: cashLabel,
+                  entries: txs,
+                );
             if (cashRemaining != 0 || hasAnyForSource(cashLabel)) {
               rows.add(
                 _BalanceRow(
@@ -121,14 +124,16 @@ class _BankBalancesPageState extends State<BankBalancesPage> {
             for (final b in banks.where((b) => b.ownerUid == uid)) {
               final bankLabel = b.name.trim();
               if (bankLabel.isEmpty) continue;
-              final ownerDisplay =
-                  b.ownerName.trim().isEmpty ? userName : b.ownerName;
-              final remaining = AmountAddedByUserPage.remainingForOwnerAndSource(
-                ownerUid: uid,
-                ownerName: ownerDisplay,
-                bankLabel: bankLabel,
-                entries: txs,
-              );
+              final ownerDisplay = b.ownerName.trim().isEmpty
+                  ? userName
+                  : b.ownerName;
+              final remaining =
+                  AmountAddedByUserPage.remainingForOwnerAndSource(
+                    ownerUid: uid,
+                    ownerName: ownerDisplay,
+                    bankLabel: bankLabel,
+                    entries: txs,
+                  );
               if (remaining == 0 && !hasAnyForSource(bankLabel)) {
                 continue;
               }
@@ -162,15 +167,13 @@ class _BankBalancesPageState extends State<BankBalancesPage> {
             separatorBuilder: (context, index) => const SizedBox(height: 10),
             itemBuilder: (context, i) {
               final r = rows[i];
-              final remColor = r.remaining >= 0
+              final displayRemaining = r.remaining < 0 ? 0.0 : r.remaining;
+              final remColor = displayRemaining > 0
                   ? const Color(0xFF16A34A)
-                  : AppColors.redDark;
+                  : AppColors.textSecondary;
               return InkWell(
-                onTap: () => _showBankDetailsDialog(
-                  context: context,
-                  row: r,
-                  txs: txs,
-                ),
+                onTap: () =>
+                    _showBankDetailsDialog(context: context, row: r, txs: txs),
                 borderRadius: BorderRadius.circular(14),
                 child: Container(
                   padding: const EdgeInsets.all(14),
@@ -237,7 +240,7 @@ class _BankBalancesPageState extends State<BankBalancesPage> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            fmt.format(r.remaining),
+                            fmt.format(displayRemaining),
                             style: AppTextStyles.bodyMedium.copyWith(
                               fontWeight: FontWeight.w800,
                               color: remColor,
@@ -281,18 +284,22 @@ class _BankBalancesPageState extends State<BankBalancesPage> {
         final sourceLabel = row.bankLabel.trim();
 
         final added = txs
-            .where((e) =>
-                entryMatchesOwner(e) &&
-                e.kind == ExpenseEntryKind.amountAdded &&
-                AmountAddedByUserPage.sourceLabel(e) == sourceLabel)
+            .where(
+              (e) =>
+                  entryMatchesOwner(e) &&
+                  e.kind == ExpenseEntryKind.amountAdded &&
+                  AmountAddedByUserPage.sourceLabel(e) == sourceLabel,
+            )
             .toList(growable: false);
 
         final spent = txs
-            .where((e) =>
-                entryMatchesOwner(e) &&
-                e.kind == ExpenseEntryKind.expense &&
-                !e.isCredit &&
-                AmountAddedByUserPage.sourceLabel(e) == sourceLabel)
+            .where(
+              (e) =>
+                  entryMatchesOwner(e) &&
+                  e.kind == ExpenseEntryKind.expense &&
+                  !e.isCredit &&
+                  AmountAddedByUserPage.sourceLabel(e) == sourceLabel,
+            )
             .toList(growable: false);
 
         added.sort((a, b) {
@@ -307,12 +314,15 @@ class _BankBalancesPageState extends State<BankBalancesPage> {
         });
 
         String formatTimeOfDay(TimeOfDay t) {
-          return MaterialLocalizations.of(ctx)
-              .formatTimeOfDay(t, alwaysUse24HourFormat: false);
+          return MaterialLocalizations.of(
+            ctx,
+          ).formatTimeOfDay(t, alwaysUse24HourFormat: false);
         }
 
         Widget entryTile(ExpenseEntry e, {required bool isAdded}) {
-          final amountText = isAdded ? '+${fmt.format(e.amount)}' : '-${fmt.format(e.amount)}';
+          final amountText = isAdded
+              ? '+${fmt.format(e.amount)}'
+              : '-${fmt.format(e.amount)}';
           final amountColor = isAdded
               ? const Color(0xFF16A34A)
               : AppColors.redDark;
@@ -326,7 +336,9 @@ class _BankBalancesPageState extends State<BankBalancesPage> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+                border: Border.all(
+                  color: AppColors.border.withValues(alpha: 0.7),
+                ),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -394,7 +406,9 @@ class _BankBalancesPageState extends State<BankBalancesPage> {
         }
 
         return AlertDialog(
-          title: Text(row.isCash ? AmountAddedByUserPage.cashSourceLabel : row.label),
+          title: Text(
+            row.isCash ? AmountAddedByUserPage.cashSourceLabel : row.label,
+          ),
           content: SizedBox(
             width: double.maxFinite,
             child: SingleChildScrollView(

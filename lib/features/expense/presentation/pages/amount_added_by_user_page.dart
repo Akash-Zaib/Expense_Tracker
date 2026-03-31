@@ -43,7 +43,8 @@ class AmountAddedByUserPage extends StatefulWidget {
   }) {
     final eUid = entry.ownerUid.trim();
     if (eUid.isNotEmpty) return eUid == ownerUid;
-    return entry.ownerName.trim().toLowerCase() == ownerName.trim().toLowerCase();
+    return entry.ownerName.trim().toLowerCase() ==
+        ownerName.trim().toLowerCase();
   }
 
   /// Remaining for a given owner + source label (bank name or [cashSourceLabel]).
@@ -59,7 +60,11 @@ class AmountAddedByUserPage extends StatefulWidget {
     double spent = 0;
 
     for (final e in entries) {
-      if (!_entryMatchesOwner(entry: e, ownerUid: ownerUid, ownerName: ownerName)) {
+      if (!_entryMatchesOwner(
+        entry: e,
+        ownerUid: ownerUid,
+        ownerName: ownerName,
+      )) {
         continue;
       }
       final src = sourceLabel(e);
@@ -95,8 +100,11 @@ class AmountAddedByUserPage extends StatefulWidget {
     List<ExpenseEntry> entries,
     Map<String, String> uidByNormalizedName,
   ) {
-    return amountAddedEntriesForUser(displayName, entries, uidByNormalizedName)
-        .fold<double>(0, (s, e) => s + e.amount);
+    return amountAddedEntriesForUser(
+      displayName,
+      entries,
+      uidByNormalizedName,
+    ).fold<double>(0, (s, e) => s + e.amount);
   }
 
   static Map<String, double> amountAddedByBankForUser(
@@ -105,7 +113,11 @@ class AmountAddedByUserPage extends StatefulWidget {
     Map<String, String> uidByNormalizedName,
   ) {
     final map = <String, double>{};
-    for (final e in amountAddedEntriesForUser(displayName, entries, uidByNormalizedName)) {
+    for (final e in amountAddedEntriesForUser(
+      displayName,
+      entries,
+      uidByNormalizedName,
+    )) {
       final label = sourceLabel(e);
       map[label] = (map[label] ?? 0) + e.amount;
     }
@@ -131,7 +143,11 @@ class AmountAddedByUserPage extends StatefulWidget {
     Map<String, String> uidByNormalizedName,
   ) {
     final map = <String, double>{};
-    for (final e in expenseEntriesForUser(displayName, entries, uidByNormalizedName)) {
+    for (final e in expenseEntriesForUser(
+      displayName,
+      entries,
+      uidByNormalizedName,
+    )) {
       final label = sourceLabel(e);
       map[label] = (map[label] ?? 0) + e.amount;
     }
@@ -168,8 +184,16 @@ class AmountAddedByUserPage extends StatefulWidget {
     required Map<String, String> uidByNormalizedName,
   }) {
     final label = bankLabel.trim().isEmpty ? cashSourceLabel : bankLabel.trim();
-    final added = amountAddedByBankForUser(displayName, entries, uidByNormalizedName);
-    final spent = expensesByBankForUser(displayName, entries, uidByNormalizedName);
+    final added = amountAddedByBankForUser(
+      displayName,
+      entries,
+      uidByNormalizedName,
+    );
+    final spent = expensesByBankForUser(
+      displayName,
+      entries,
+      uidByNormalizedName,
+    );
     return (added[label] ?? 0) - (spent[label] ?? 0);
   }
 
@@ -223,7 +247,10 @@ class _AmountAddedByUserPageState extends State<AmountAddedByUserPage> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            color: AppColors.textPrimary,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text('Amount added by user', style: AppTextStyles.title),
@@ -233,7 +260,9 @@ class _AmountAddedByUserPageState extends State<AmountAddedByUserPage> {
         animation: _store,
         builder: (context, _) {
           if (_store.loading && _store.transactions.isEmpty) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            );
           }
 
           final txs = _store.transactions;
@@ -274,33 +303,39 @@ class _AmountAddedByUserPageState extends State<AmountAddedByUserPage> {
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Text(
                     err,
-                    style: AppTextStyles.caption.copyWith(color: AppColors.redDark),
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.redDark,
+                    ),
                   ),
                 ),
               for (final name in widget.displayUsers) ...[
                 Builder(
                   builder: (context) {
-                    final added = AmountAddedByUserPage.amountAddedByBankForUser(
-                      name,
-                      txs,
-                      uidMap,
-                    );
-                    final spentRaw = AmountAddedByUserPage.expensesByBankForUser(
-                      name,
-                      txs,
-                      uidMap,
-                    );
-                    final spent = AmountAddedByUserPage.adjustSpentMapForUnfundedBankSources(
-                      addedByBank: added,
-                      spentByBank: spentRaw,
-                    );
+                    final added =
+                        AmountAddedByUserPage.amountAddedByBankForUser(
+                          name,
+                          txs,
+                          uidMap,
+                        );
+                    final spentRaw =
+                        AmountAddedByUserPage.expensesByBankForUser(
+                          name,
+                          txs,
+                          uidMap,
+                        );
+                    final spent =
+                        AmountAddedByUserPage.adjustSpentMapForUnfundedBankSources(
+                          addedByBank: added,
+                          spentByBank: spentRaw,
+                        );
                     return _ExpandableUserAmountRow(
                       displayName: name,
-                      totalAddedCumulative: AmountAddedByUserPage.totalAddedForUser(
-                        name,
-                        txs,
-                        uidMap,
-                      ),
+                      totalAddedCumulative:
+                          AmountAddedByUserPage.totalAddedForUser(
+                            name,
+                            txs,
+                            uidMap,
+                          ),
                       addedByBank: added,
                       spentByBank: spent,
                       formatter: formatter,
@@ -318,7 +353,9 @@ class _AmountAddedByUserPageState extends State<AmountAddedByUserPage> {
                 decoration: BoxDecoration(
                   color: AppColors.greenLight,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+                  border: Border.all(
+                    color: AppColors.border.withValues(alpha: 0.7),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -362,6 +399,7 @@ class _AmountAddedByUserPageState extends State<AmountAddedByUserPage> {
 
 class _ExpandableUserAmountRow extends StatelessWidget {
   final String displayName;
+
   /// Cumulative total amount added for this user (all sources).
   final double totalAddedCumulative;
   final Map<String, double> addedByBank;
@@ -436,7 +474,9 @@ class _ExpandableUserAmountRow extends StatelessWidget {
             Expanded(
               child: Text(
                 displayName,
-                style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w700),
+                style: AppTextStyles.bodyMedium.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -479,7 +519,9 @@ class _ExpandableUserAmountRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   displayName,
-                  style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w700),
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -555,7 +597,9 @@ class _BankSourceRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final remaining = added - spent;
-    final remColor = remaining >= 0 ? const Color(0xFF16A34A) : AppColors.redDark;
+    final remColor = remaining >= 0
+        ? const Color(0xFF16A34A)
+        : AppColors.redDark;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
@@ -565,7 +609,9 @@ class _BankSourceRow extends StatelessWidget {
           Row(
             children: [
               Icon(
-                label == 'By Cash' ? Icons.payments_outlined : Icons.account_balance_outlined,
+                label == 'By Cash'
+                    ? Icons.payments_outlined
+                    : Icons.account_balance_outlined,
                 size: 20,
                 color: AppColors.textSecondary,
               ),
@@ -573,7 +619,9 @@ class _BankSourceRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w700),
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),

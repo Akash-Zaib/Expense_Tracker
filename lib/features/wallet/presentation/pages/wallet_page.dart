@@ -4,6 +4,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/firebase/users_directory_data_source.dart';
+import '../../../../shared/widgets/current_user_name_text.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../expense/presentation/store/transactions_store.dart';
 import '../../../banks/domain/entities/bank.dart';
@@ -94,15 +95,7 @@ class _WalletPageState extends State<WalletPage> {
               Flexible(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Wallet', style: AppTextStyles.title),
-                    Text(
-                      'Balance & accounts',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ],
+                  children: [CurrentUserNameText(style: AppTextStyles.title)],
                 ),
               ),
             ],
@@ -221,10 +214,8 @@ class _WalletPageState extends State<WalletPage> {
             )
           else
             ...allBanks.map(
-              (b) => _BankRow(
-                bank: b,
-                onDelete: () => _banksStore.deleteBank(b),
-              ),
+              (b) =>
+                  _BankRow(bank: b, onDelete: () => _banksStore.deleteBank(b)),
             ),
         ],
       ),

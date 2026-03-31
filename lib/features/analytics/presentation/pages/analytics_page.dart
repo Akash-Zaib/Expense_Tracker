@@ -21,6 +21,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
   late final CurrentUserContext _currentUserContext;
   final TextEditingController _searchController = TextEditingController();
 
+  // ignore: prefer_final_fields
   AnalyticsFilter _filter = const AnalyticsFilter();
 
   @override
@@ -90,15 +91,6 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 1.5),
                       ),
-                      padding: const EdgeInsets.all(2),
-                      child: const Text(
-                        '3',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
                     ),
                   ),
                 ],
@@ -108,17 +100,23 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Logic Worms',
-                      style: AppTextStyles.title,
-                      overflow: TextOverflow.ellipsis,
+                    FutureBuilder<String>(
+                      future: _currentUserContext.resolvedName(),
+                      builder: (context, snapshot) {
+                        final name = snapshot.data?.trim();
+                        return Text(
+                          (name == null || name.isEmpty) ? 'User' : name,
+                          style: AppTextStyles.title,
+                          overflow: TextOverflow.ellipsis,
+                        );
+                      },
                     ),
-                    Text(
-                      '3 Partners',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.primary,
-                      ),
-                    ),
+                    // Text(
+                    //   '3 Partners',
+                    //   style: AppTextStyles.caption.copyWith(
+                    //     color: AppColors.primary,
+                    //   ),
+                    // ),
                   ],
                 ),
               ),
@@ -253,6 +251,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     );
   }
 
+  // ignore: unused_element
   List<String> _paidByOptions(List<ExpenseEntry> all) {
     final set = <String>{};
     for (final e in all) {
@@ -262,6 +261,7 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
     return ['All', ...list];
   }
 
+  // ignore: unused_element
   List<String> _categoryOptions(List<ExpenseEntry> all) {
     final set = <String>{};
     for (final e in all) {

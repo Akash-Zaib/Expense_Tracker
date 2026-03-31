@@ -32,7 +32,10 @@ class PersonalExpensesScreen extends StatelessWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            color: AppColors.textPrimary,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(title, style: AppTextStyles.title),
@@ -44,12 +47,12 @@ class PersonalExpensesScreen extends StatelessWidget {
           final source = entries ?? store.transactions;
           final filtered = showOnlyAmountAdded
               ? source
-                  .where((e) => e.kind == ExpenseEntryKind.amountAdded)
-                  .toList()
+                    .where((e) => e.kind == ExpenseEntryKind.amountAdded)
+                    .toList()
               : (showOnlyExpenses
                     ? source
-                        .where((e) => e.kind == ExpenseEntryKind.expense)
-                        .toList()
+                          .where((e) => e.kind == ExpenseEntryKind.expense)
+                          .toList()
                     : source.toList());
           final items = filtered
             ..sort((a, b) {
@@ -123,7 +126,9 @@ class _TotalCard extends StatelessWidget {
               children: [
                 Text(
                   'Total Amount Added',
-                  style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w700),
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -136,8 +141,14 @@ class _TotalCard extends StatelessWidget {
           Container(
             height: 42,
             width: 42,
-            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-            child: const Icon(Icons.add_circle_outline, color: AppColors.primary),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.add_circle_outline,
+              color: AppColors.primary,
+            ),
           ),
         ],
       ),
@@ -189,7 +200,10 @@ class _TimelineCard extends StatelessWidget {
       child: Column(
         children: [
           for (int i = 0; i < entries.length; i++) ...[
-            _TimelineRow(entry: entries[i], onTap: () => onTapEntry(entries[i])),
+            _TimelineRow(
+              entry: entries[i],
+              onTap: () => onTapEntry(entries[i]),
+            ),
             if (i != entries.length - 1)
               Divider(
                 height: 1,
@@ -225,12 +239,17 @@ class _TimelineRow extends StatelessWidget {
 
     final subtitleParts = <String>[
       'Added by ${entry.addedBy}',
-      if (isAdded && (entry.bankName ?? '').trim().isNotEmpty) 'Source ${entry.bankName}',
+      if (isAdded && (entry.bankName ?? '').trim().isNotEmpty)
+        'Source ${entry.bankName}',
       if (!isAdded && entry.paidBy.trim().isNotEmpty) 'Paid by ${entry.paidBy}',
     ];
 
-    final amountText = isAdded ? '+${formatter.format(entry.amount)}' : formatter.format(entry.amount);
-    final amountColor = isAdded ? const Color(0xFF16A34A) : AppColors.textPrimary;
+    final amountText = isAdded
+        ? '+${formatter.format(entry.amount)}'
+        : formatter.format(entry.amount);
+    final amountColor = isAdded
+        ? const Color(0xFF16A34A)
+        : AppColors.textPrimary;
 
     return InkWell(
       onTap: onTap,
@@ -242,7 +261,9 @@ class _TimelineRow extends StatelessWidget {
           children: [
             CircleAvatar(
               radius: 18,
-              backgroundColor: isAdded ? const Color(0xFF22C55E) : AppColors.primary,
+              backgroundColor: isAdded
+                  ? const Color(0xFF22C55E)
+                  : AppColors.primary,
               child: Text(
                 initials.isEmpty ? 'U' : initials,
                 style: AppTextStyles.bodyMedium.copyWith(
@@ -258,19 +279,20 @@ class _TimelineRow extends StatelessWidget {
                 children: [
                   Text(
                     isAdded ? 'Amount Added' : entry.description,
-                    style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w700),
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    subtitleParts.join(' • '),
-                    style: AppTextStyles.caption,
-                  ),
+                  Text(subtitleParts.join(' • '), style: AppTextStyles.caption),
                   if (!isAdded && entry.category.trim().isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
                       entry.category,
-                      style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
@@ -318,7 +340,9 @@ class _EntryDetailsDialog extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'Details',
-                    style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w700),
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 InkWell(
@@ -326,7 +350,11 @@ class _EntryDetailsDialog extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                   child: const Padding(
                     padding: EdgeInsets.all(4),
-                    child: Icon(Icons.close, size: 22, color: AppColors.textPrimary),
+                    child: Icon(
+                      Icons.close,
+                      size: 22,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
               ],
@@ -341,15 +369,23 @@ class _EntryDetailsDialog extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.inputBackground,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border.withValues(alpha: 0.7)),
+                border: Border.all(
+                  color: AppColors.border.withValues(alpha: 0.7),
+                ),
               ),
               child: Column(
                 children: [
-                  _detailRow(title: 'Type', value: isAdded ? 'Amount Added' : 'Expense'),
+                  _detailRow(
+                    title: 'Type',
+                    value: isAdded ? 'Amount Added' : 'Expense',
+                  ),
                   const SizedBox(height: 12),
                   _detailRow(title: 'Added by', value: entry.addedBy),
                   const SizedBox(height: 12),
-                  _detailRow(title: 'Date', value: '${dateFmt.format(entry.date)} • $time'),
+                  _detailRow(
+                    title: 'Date',
+                    value: '${dateFmt.format(entry.date)} • $time',
+                  ),
                   if (isAdded && (entry.bankName ?? '').trim().isNotEmpty) ...[
                     const SizedBox(height: 12),
                     _detailRow(title: 'Source', value: entry.bankName),
@@ -361,19 +397,26 @@ class _EntryDetailsDialog extends StatelessWidget {
                     _detailRow(title: 'Category', value: entry.category),
                   ],
                   const SizedBox(height: 16),
-                  Divider(height: 1, color: AppColors.border.withValues(alpha: 0.9)),
+                  Divider(
+                    height: 1,
+                    color: AppColors.border.withValues(alpha: 0.9),
+                  ),
                   const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       Text(
                         isAdded ? 'Amount Added:' : 'Amount:',
-                        style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Text(
                         amountFmt.format(entry.amount),
-                        style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w700),
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ],
                   ),
@@ -402,7 +445,9 @@ class _EntryDetailsDialog extends StatelessWidget {
           child: Text(
             (value ?? '').toString(),
             textAlign: TextAlign.right,
-            style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600),
+            style: AppTextStyles.bodyMedium.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ],
@@ -426,10 +471,15 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               'No entries yet',
-              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
             ),
             const SizedBox(height: 4),
-            Text('Add Amount or submit an expense', style: AppTextStyles.caption),
+            Text(
+              'Add Amount or submit an expense',
+              style: AppTextStyles.caption,
+            ),
           ],
         ),
       ),

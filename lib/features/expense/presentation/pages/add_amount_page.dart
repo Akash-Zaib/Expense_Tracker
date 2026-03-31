@@ -68,6 +68,19 @@ class _AddAmountPageState extends State<AddAmountPage> {
   BankOption? _selectedBank;
   late final BanksStore _banksStore;
 
+  String _toUpperCamelWords(String input) {
+    final normalized = input.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized.isEmpty) return '';
+    return normalized
+        .split(' ')
+        .where((word) => word.isNotEmpty)
+        .map(
+          (word) =>
+              '${word.substring(0, 1).toUpperCase()}${word.substring(1).toLowerCase()}',
+        )
+        .join(' ');
+  }
+
   @override
   void initState() {
     super.initState();
@@ -96,9 +109,10 @@ class _AddAmountPageState extends State<AddAmountPage> {
       return;
     }
 
-    final desc = _descriptionController.text.trim().isEmpty
+    final typedDescription = _descriptionController.text.trim();
+    final desc = typedDescription.isEmpty
         ? 'Amount Added'
-        : _descriptionController.text.trim();
+        : _toUpperCamelWords(typedDescription);
 
     Navigator.pop(
       context,
@@ -377,7 +391,7 @@ class _BankSelectionSheet extends StatelessWidget {
                 shrinkWrap: true,
                 padding: const EdgeInsets.fromLTRB(0, 8, 0, 72),
                 itemCount: banks.length,
-                separatorBuilder: (_, __) =>
+                separatorBuilder: (context, index) =>
                     const Divider(height: 1, indent: 72),
                 itemBuilder: (context, index) {
                   final bank = banks[index];
