@@ -4,6 +4,7 @@ import '../models/expense_entry_model.dart';
 
 abstract class ExpenseRemoteDataSource {
   Future<List<ExpenseEntryModel>> getTransactions({int limit = 200});
+  Stream<List<ExpenseEntryModel>> watchTransactions({int limit = 200});
   Future<void> addTransaction(ExpenseEntryModel entry);
   Future<void> addTransactionForUid({
     required String uid,
@@ -67,6 +68,37 @@ class ExpenseRemoteDataSourceImpl implements ExpenseRemoteDataSource {
       return items.take(limit).toList(growable: false);
     }
     return items;
+  }
+
+  @override
+  Stream<List<ExpenseEntryModel>> watchTransactions({int limit = 200}) {
+    // Use a collectionGroup query so all users' transactions are observed in one
+    // real-time stream (multi-device sync).
+    //
+    // Keep the query index-friendly: stream all docs from the collection group
+    // and apply ordering/limit client-side.
+    return _userScope.firestore
+        .collectionGroup('transactions')
+        .snapshots()
+        .map((snapshot) {
+          final items =
+              snapshot.docs
+                  .map((doc) => ExpenseEntryModel.fromFirestore(doc.data(), doc.id))
+                  .toList(growable: true);
+
+          items.sort((a, b) {
+            final dateCmp = b.date.compareTo(a.date);
+            if (dateCmp != 0) return dateCmp;
+            final aMinutes = a.time.hour * 60 + a.time.minute;
+            final bMinutes = b.time.hour * 60 + b.time.minute;
+            return bMinutes.compareTo(aMinutes);
+          });
+
+          if (items.length > limit) {
+            return items.take(limit).toList(growable: false);
+          }
+          return items;
+        });
   }
 
   @override

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 
 import '../../../../core/firebase/current_user_context.dart';
 import '../../domain/entities/expense_entry.dart';
@@ -7,6 +8,7 @@ import '../../domain/usecases/get_transactions.dart';
 import '../../domain/usecases/move_transaction_to_user.dart';
 import '../../domain/usecases/split_and_assign.dart';
 import '../../domain/usecases/update_paid_to.dart';
+import '../../domain/repositories/expense_repository.dart';
 
 class TransactionsStore extends ChangeNotifier {
   final GetTransactions _getTransactions;
@@ -15,6 +17,7 @@ class TransactionsStore extends ChangeNotifier {
   final SplitAndAssign _splitAndAssign;
   final MoveTransactionToUser _moveTransactionToUser;
   final CurrentUserContext _currentUserContext;
+  final ExpenseRepository _repository;
 
   /// Tracks which UID `_transactions` belongs to (to avoid cross-user leakage).
   String? _loadedForUid;
@@ -26,22 +29,70 @@ class TransactionsStore extends ChangeNotifier {
     required SplitAndAssign splitAndAssign,
     required MoveTransactionToUser moveTransactionToUser,
     required CurrentUserContext currentUserContext,
+    required ExpenseRepository repository,
   }) : _getTransactions = getTransactions,
        _addTransaction = addTransaction,
        _updatePaidTo = updatePaidTo,
        _splitAndAssign = splitAndAssign,
        _moveTransactionToUser = moveTransactionToUser,
-       _currentUserContext = currentUserContext;
+       _currentUserContext = currentUserContext,
+       _repository = repository;
 
   final List<ExpenseEntry> _transactions = [];
   bool _loading = false;
   String? _error;
+  StreamSubscription<List<ExpenseEntry>>? _watchSub;
+  Timer? _fallbackPollTimer;
+  Timer? _watchRetryTimer;
+  int _watchLimit = 2000;
+  bool _watching = false;
+  Future<void>? _inFlightLoad;
+  bool _pendingForceReload = false;
+  int _pendingLimit = 200;
 
   List<ExpenseEntry> get transactions => List.unmodifiable(_transactions);
   bool get loading => _loading;
   String? get error => _error;
+  bool get watching => _watching;
+
+  void startWatching({int limit = 2000}) {
+    _watchLimit = limit;
+    _watching = true;
+    _error = null;
+    notifyListeners();
+
+    _watchSub?.cancel();
+    _watchRetryTimer?.cancel();
+    _watchSub = _repository.watchTransactions(limit: _watchLimit).listen(
+      (items) {
+        _stopFallbackPolling();
+        _transactions
+          ..clear()
+          ..addAll(items);
+        _error = null;
+        notifyListeners();
+      },
+      onError: (e) {
+        _error = e.toString();
+        _startFallbackPolling();
+        _scheduleWatchRetry();
+        notifyListeners();
+      },
+    );
+  }
+
+  Future<void> stopWatching() async {
+    _watching = false;
+    _stopFallbackPolling();
+    _watchRetryTimer?.cancel();
+    _watchRetryTimer = null;
+    await _watchSub?.cancel();
+    _watchSub = null;
+    notifyListeners();
+  }
 
   Future<void> load({int limit = 200, bool force = false}) async {
+    _pendingLimit = _pendingLimit > limit ? _pendingLimit : limit;
     final currentUid = _currentUserContext.uid;
     final uidChanged = _loadedForUid != null && _loadedForUid != currentUid;
     if (uidChanged) {
@@ -51,23 +102,40 @@ class TransactionsStore extends ChangeNotifier {
     }
     _loadedForUid = currentUid;
 
-    if (_loading) return;
+    if (_loading) {
+      if (force) _pendingForceReload = true;
+      return _inFlightLoad ?? Future<void>.value();
+    }
     if (!force && _transactions.isNotEmpty) return;
     _setLoading(true);
     _error = null;
     notifyListeners();
 
-    try {
-      final items = await _getTransactions(limit: limit);
-      _transactions
-        ..clear()
-        ..addAll(items);
-      _error = null;
-    } catch (e) {
-      _error = e.toString();
-    } finally {
-      _setLoading(false);
-      notifyListeners();
+    _inFlightLoad = () async {
+      try {
+        final items = await _getTransactions(limit: limit);
+        _transactions
+          ..clear()
+          ..addAll(items);
+        _error = null;
+      } catch (e) {
+        _error = e.toString();
+      } finally {
+        _setLoading(false);
+        notifyListeners();
+      }
+    }();
+
+    await _inFlightLoad;
+    _inFlightLoad = null;
+
+    if (_pendingForceReload) {
+      final nextLimit = _pendingLimit;
+      _pendingForceReload = false;
+      _pendingLimit = 200;
+      await load(limit: nextLimit, force: true);
+    } else {
+      _pendingLimit = 200;
     }
   }
 
@@ -76,8 +144,9 @@ class TransactionsStore extends ChangeNotifier {
     notifyListeners();
     try {
       await _addTransaction(entry);
-      // Reload to get the stored document IDs from Firestore.
-      await load(force: true);
+      // Always force reload so current screen refreshes immediately even if
+      // realtime stream is delayed or temporarily failing.
+      await load(limit: _watching ? _watchLimit : 200, force: true);
     } catch (e) {
       _error = e.toString();
     }
@@ -209,6 +278,36 @@ class TransactionsStore extends ChangeNotifier {
 
   void _setLoading(bool value) {
     _loading = value;
+  }
+
+  void _startFallbackPolling() {
+    if (!_watching || _fallbackPollTimer != null) return;
+    _fallbackPollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      // Best-effort fallback while realtime listener is unavailable.
+      load(limit: _watchLimit, force: true);
+    });
+  }
+
+  void _stopFallbackPolling() {
+    _fallbackPollTimer?.cancel();
+    _fallbackPollTimer = null;
+  }
+
+  void _scheduleWatchRetry() {
+    if (!_watching) return;
+    _watchRetryTimer?.cancel();
+    _watchRetryTimer = Timer(const Duration(seconds: 5), () {
+      if (!_watching) return;
+      startWatching(limit: _watchLimit);
+    });
+  }
+
+  @override
+  void dispose() {
+    _fallbackPollTimer?.cancel();
+    _watchRetryTimer?.cancel();
+    _watchSub?.cancel();
+    super.dispose();
   }
 
   void seedIfEmpty(List<ExpenseEntry> initial) {

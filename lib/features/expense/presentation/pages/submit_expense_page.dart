@@ -77,6 +77,8 @@ class SubmitExpensePage extends StatefulWidget {
 }
 
 class _SubmitExpensePageState extends State<SubmitExpensePage> {
+  static const String _kOfficeSuppliesCategory = 'Office Supplies';
+
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
   String? _selectedCategory;
@@ -85,6 +87,12 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
   TimeOfDay? _selectedTime;
   String _selectedPaidTo = '';
   List<String> _paidToTargets = const [];
+
+  /// All registered users (sorted) — used when category is Office Supplies.
+  List<String> _registeredUserNames = const [];
+
+  /// For Office Supplies: which user this expense is assigned to (paidTo).
+  String? _officeSuppliesAssigneeName;
   late final BanksStore _banksStore;
   late final CurrentUserContext _currentUserContext;
   late final UsersDirectoryDataSource _usersDirectory;
@@ -99,7 +107,7 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
     _transactionsStore = sl<TransactionsStore>();
     _banksStore.load();
     _transactionsStore.load();
-    _loadPaidToTargets();
+    _loadPaidToTargetsAndDirectory();
   }
 
   @override
@@ -173,6 +181,26 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
       return;
     }
 
+    if (_selectedCategory == _kOfficeSuppliesCategory) {
+      final assignee = _officeSuppliesAssigneeName?.trim() ?? '';
+      if (assignee.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Office Supplies: select which user this expense is for.',
+            ),
+            backgroundColor: AppColors.redDark,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+        return;
+      }
+    }
+
     await _ensureTransactionsLoaded();
     final ownerNameEarly = await _currentUserContext.resolvedName();
     if (!mounted) return;
@@ -228,7 +256,11 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
     final ownerUid = _currentUserContext.uid;
     final ownerName = ownerNameEarly;
     if (!mounted) return;
-    final paidTo = _selectedPaidTo.trim().isEmpty ? ownerName : _selectedPaidTo;
+    final paidTo = _selectedCategory == _kOfficeSuppliesCategory
+        ? (_officeSuppliesAssigneeName?.trim().isNotEmpty == true
+              ? _officeSuppliesAssigneeName!.trim()
+              : ownerName)
+        : (_selectedPaidTo.trim().isEmpty ? ownerName : _selectedPaidTo);
     final entry = ExpenseEntry(
       description: _descriptionController.text.isNotEmpty
           ? _descriptionController.text
@@ -250,7 +282,7 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
     Navigator.pop(context, entry);
   }
 
-  Future<void> _loadPaidToTargets() async {
+  Future<void> _loadPaidToTargetsAndDirectory() async {
     final ownerName = await _currentUserContext.resolvedName();
     final profiles = await _usersDirectory.getAllProfilesByUid();
     final unique = <String>{};
@@ -258,10 +290,13 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
       final name = profile.name.trim();
       if (name.isNotEmpty) unique.add(name);
     }
+    final sortedAll = unique.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     if (!mounted) return;
     setState(() {
       _selectedPaidTo = '';
       _paidToTargets = [ownerName, ...unique.where((u) => u != ownerName)];
+      _registeredUserNames = sortedAll;
     });
   }
 
@@ -364,9 +399,108 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
           categories: appCategoryOptions,
           selectedCategory: _selectedCategory,
           onSelected: (category) {
-            setState(() => _selectedCategory = category);
+            setState(() {
+              _selectedCategory = category;
+              if (category != _kOfficeSuppliesCategory) {
+                _officeSuppliesAssigneeName = null;
+              }
+            });
             Navigator.pop(ctx);
+            if (category == _kOfficeSuppliesCategory) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                _showOfficeSuppliesAssigneeSheet();
+              });
+            }
           },
+        );
+      },
+    );
+  }
+
+  void _showOfficeSuppliesAssigneeSheet() {
+    final names = _registeredUserNames;
+    if (names.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('No registered users found.'),
+          backgroundColor: AppColors.redDark,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final maxH = MediaQuery.of(ctx).size.height * 0.55;
+        return SafeArea(
+          child: Padding(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 12,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxH),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text('Assign expense to', style: AppTextStyles.heading3),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Office Supplies — choose which user this amount applies to.',
+                    style: AppTextStyles.caption,
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: names.length,
+                      separatorBuilder: (context, index) =>
+                          const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final name = names[index];
+                        final selected = _officeSuppliesAssigneeName == name;
+                        return ListTile(
+                          title: Text(name, style: AppTextStyles.bodyMedium),
+                          trailing: selected
+                              ? const Icon(
+                                  Icons.check_circle,
+                                  color: AppColors.primary,
+                                )
+                              : null,
+                          onTap: () {
+                            setState(() => _officeSuppliesAssigneeName = name);
+                            Navigator.pop(ctx);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         );
       },
     );
@@ -428,13 +562,29 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
               const SizedBox(height: 20),
 
               // Category (Bottom Sheet)
-              _buildLabel('Expense Category'),
+              _buildLabel('Purpose'),
               _buildSelectionField(
                 text: _selectedCategory ?? 'Select Category',
                 icon: Icons.grid_view_outlined,
                 isSelected: _selectedCategory != null,
                 onTap: _showCategorySelectionSheet,
               ),
+              if (_selectedCategory == _kOfficeSuppliesCategory) ...[
+                const SizedBox(height: 20),
+                _buildLabel('Assign to user'),
+                _buildSelectionField(
+                  text:
+                      (_officeSuppliesAssigneeName == null ||
+                          _officeSuppliesAssigneeName!.trim().isEmpty)
+                      ? 'Select user'
+                      : _officeSuppliesAssigneeName!,
+                  icon: Icons.person_outline,
+                  isSelected:
+                      _officeSuppliesAssigneeName != null &&
+                      _officeSuppliesAssigneeName!.trim().isNotEmpty,
+                  onTap: _showOfficeSuppliesAssigneeSheet,
+                ),
+              ],
               const SizedBox(height: 20),
 
               // Bank (Bottom Sheet)
@@ -572,6 +722,8 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
     );
   }
 
+  // Kept for optional "Paid To" UI if re-enabled in the form.
+  // ignore: unused_element
   void _showPaidToSelectionSheet() {
     final targets = _paidToTargets;
     if (targets.isEmpty) return;

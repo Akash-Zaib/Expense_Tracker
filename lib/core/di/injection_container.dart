@@ -117,6 +117,7 @@ Future<void> init() async {
       splitAndAssign: sl(),
       moveTransactionToUser: sl(),
       currentUserContext: sl(),
+      repository: sl(),
     ),
   );
 

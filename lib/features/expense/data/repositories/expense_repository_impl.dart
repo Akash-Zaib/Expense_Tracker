@@ -14,6 +14,11 @@ class ExpenseRepositoryImpl implements ExpenseRepository {
   }
 
   @override
+  Stream<List<ExpenseEntry>> watchTransactions({int limit = 200}) {
+    return _remote.watchTransactions(limit: limit);
+  }
+
+  @override
   Future<void> addTransaction(ExpenseEntry entry) {
     return _remote.addTransaction(ExpenseEntryModel.fromEntity(entry));
   }

@@ -2,6 +2,7 @@ import '../entities/expense_entry.dart';
 
 abstract class ExpenseRepository {
   Future<List<ExpenseEntry>> getTransactions({int limit = 200});
+  Stream<List<ExpenseEntry>> watchTransactions({int limit = 200});
   Future<void> addTransaction(ExpenseEntry entry);
   Future<void> addTransactionForUid({
     required String uid,

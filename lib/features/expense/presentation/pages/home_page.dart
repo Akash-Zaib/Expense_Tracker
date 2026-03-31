@@ -15,6 +15,7 @@ import '../../../analytics/presentation/pages/analytics_page.dart';
 import '../../../wallet/presentation/pages/wallet_page.dart';
 import '../../domain/entities/expense_entry.dart';
 import 'add_amount_page.dart';
+import 'amount_added_by_user_page.dart';
 import 'bank_balances_page.dart';
 import '../store/transactions_store.dart';
 
@@ -54,8 +55,8 @@ class _HomePageState extends State<HomePage> {
     _uidByNormalizedNameNotifier = ValueNotifier<Map<String, String>>(const {});
     _currentUserUid = _currentUserContext.uid;
     // Home cards/sections need a wider snapshot so other users' expenses appear.
-    // (TransactionsStore default limit is small.)
-    _transactionsStore.load(force: true, limit: 2000);
+    // Use a real-time listener so multi-device updates show instantly.
+    _transactionsStore.startWatching(limit: 2000);
     _loadIdentityAndColors();
     _listenToUserColorChanges();
 
@@ -588,7 +589,7 @@ class _HomePageState extends State<HomePage> {
 }
 
 // ── HOME CONTENT (extracted so it can be used in IndexedStack) ───
-class _HomeContent extends StatelessWidget {
+class _HomeContent extends StatefulWidget {
   final String currentUserName;
   final String currentUserUid;
   final double availableBalance;
@@ -624,6 +625,20 @@ class _HomeContent extends StatelessWidget {
     required this.onReassignPaidTo,
     required this.onSplitAssign,
   });
+
+  @override
+  State<_HomeContent> createState() => _HomeContentState();
+}
+
+class _HomeContentState extends State<_HomeContent> {
+  final ValueNotifier<Set<DateTime>> _expandedActivityDaysNotifier =
+      ValueNotifier<Set<DateTime>>(<DateTime>{});
+
+  @override
+  void dispose() {
+    _expandedActivityDaysNotifier.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -669,7 +684,7 @@ class _HomeContent extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      currentUserName,
+                      widget.currentUserName,
                       style: AppTextStyles.title,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -735,12 +750,12 @@ class _HomeContent extends StatelessWidget {
                   children: [
                     Text('Available Balance', style: AppTextStyles.title),
                     const SizedBox(height: 4),
-                    Text(dateRange, style: AppTextStyles.caption),
+                    Text(widget.dateRange, style: AppTextStyles.caption),
                   ],
                 ),
               ),
               InkWell(
-                onTap: onPickDateRange,
+                onTap: widget.onPickDateRange,
                 borderRadius: BorderRadius.circular(999),
                 child: Container(
                   decoration: const BoxDecoration(
@@ -772,14 +787,14 @@ class _HomeContent extends StatelessWidget {
                         fit: BoxFit.scaleDown,
                         alignment: Alignment.centerLeft,
                         child: Text(
-                          formatter.format(availableBalance),
+                          formatter.format(widget.availableBalance),
                           style: AppTextStyles.heading1.copyWith(fontSize: 32),
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     GestureDetector(
-                      onTap: onOpenAmountAddedBreakdown,
+                      onTap: widget.onOpenAmountAddedBreakdown,
                       child: const Icon(
                         Icons.open_in_new,
                         color: AppColors.primary,
@@ -791,7 +806,7 @@ class _HomeContent extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               OutlinedButton.icon(
-                onPressed: onAddCash,
+                onPressed: widget.onAddCash,
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Add Cash'),
                 style: OutlinedButton.styleFrom(
@@ -816,12 +831,14 @@ class _HomeContent extends StatelessWidget {
   // ── EXPENSE GRID (overflow-safe) ──────────────────────────
   Widget _buildGridSection(BuildContext context) {
     final formatter = NumberFormat('#,##0', 'en_US');
-    if (expenseCards.isEmpty) return const SizedBox.shrink();
+    if (widget.expenseCards.isEmpty) return const SizedBox.shrink();
 
     final rows = <Widget>[];
-    for (var i = 0; i < expenseCards.length; i += 2) {
-      final left = expenseCards[i];
-      final right = i + 1 < expenseCards.length ? expenseCards[i + 1] : null;
+    for (var i = 0; i < widget.expenseCards.length; i += 2) {
+      final left = widget.expenseCards[i];
+      final right = i + 1 < widget.expenseCards.length
+          ? widget.expenseCards[i + 1]
+          : null;
       rows.add(
         Row(
           children: [
@@ -849,7 +866,7 @@ class _HomeContent extends StatelessWidget {
           ],
         ),
       );
-      if (i + 2 < expenseCards.length) {
+      if (i + 2 < widget.expenseCards.length) {
         rows.add(const SizedBox(height: 12));
       }
     }
@@ -858,7 +875,7 @@ class _HomeContent extends StatelessWidget {
 
   Color? _colorForUser(String name) {
     final key = name.toLowerCase().trim();
-    final value = userColorByName[key];
+    final value = widget.userColorByName[key];
     return value == null ? null : Color(value);
   }
 
@@ -934,8 +951,14 @@ class _HomeContent extends StatelessWidget {
 
   // ── RECENT ACTIVITY (overflow-safe) ───────────────────────
   Widget _buildRecentActivitySection(BuildContext context) {
-    final grouped = _groupByDay(activityEntries);
+    final grouped = _groupByDay(widget.activityEntries);
     final groupKeys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
+
+    if (widget.activityEntries.isEmpty &&
+        _expandedActivityDaysNotifier.value.isNotEmpty) {
+      _expandedActivityDaysNotifier.value = <DateTime>{};
+    }
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -947,25 +970,123 @@ class _HomeContent extends StatelessWidget {
         children: [
           Text('Recent Activity', style: AppTextStyles.title),
           const SizedBox(height: 16),
-          if (activityEntries.isEmpty)
+          if (widget.activityEntries.isEmpty)
             _buildEmptyState()
           else
-            for (final day in groupKeys) ...[
-              _SectionHeader(title: _formatSectionTitle(day)),
-              const SizedBox(height: 10),
-              _ActivityCard(
-                children: [
-                  for (int i = 0; i < grouped[day]!.length; i++) ...[
-                    _buildActivityItem(context, grouped[day]![i]),
+            ValueListenableBuilder<Set<DateTime>>(
+              valueListenable: _expandedActivityDaysNotifier,
+              builder: (context, expandedDays, _) {
+                return Column(
+                  children: [
+                    for (int dayIndex = 0; dayIndex < groupKeys.length; dayIndex++) ...[
+                      _buildActivityDayRow(
+                        context: context,
+                        day: groupKeys[dayIndex],
+                        entries:
+                            grouped[groupKeys[dayIndex]] ?? const <ExpenseEntry>[],
+                        expandedDays: expandedDays,
+                      ),
+                      if (dayIndex < groupKeys.length - 1)
+                        const SizedBox(height: 12),
+                    ],
                   ],
-                ],
-              ),
-              const SizedBox(height: 16),
-            ],
+                );
+              },
+            ),
         ],
       ),
     );
   }
+
+  Widget _buildActivityDayRow({
+    required BuildContext context,
+    required DateTime day,
+    required List<ExpenseEntry> entries,
+    required Set<DateTime> expandedDays,
+  }) {
+    final isExpanded = _isActivityDayExpanded(day, expandedDays);
+    final isToday = _isSameDay(day, _asDay(DateTime.now()));
+    final rowBgColor = isToday
+        ? AppColors.primary.withValues(alpha: 0.09)
+        : AppColors.background;
+    final rowBorderColor = isExpanded
+        ? AppColors.primary.withValues(alpha: 0.35)
+        : AppColors.border.withValues(alpha: 0.9);
+    final labelColor = isToday ? AppColors.primary : AppColors.textSecondary;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: rowBgColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: rowBorderColor),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _formatSectionTitle(day),
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: labelColor,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              IconButton(
+                onPressed: () => _toggleActivityDay(day, expandedDays),
+                splashRadius: 18,
+                iconSize: 20,
+                icon: Icon(
+                  isExpanded
+                      ? Icons.keyboard_arrow_up_rounded
+                      : Icons.keyboard_arrow_down_rounded,
+                  color: isExpanded
+                      ? AppColors.primary
+                      : AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (isExpanded) ...[
+          const SizedBox(height: 10),
+          _ActivityCard(
+            children: [
+              for (int i = 0; i < entries.length; i++) ...[
+                _buildActivityItem(context, entries[i]),
+              ],
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  bool _isActivityDayExpanded(DateTime day, Set<DateTime> expandedDays) {
+    for (final expandedDay in expandedDays) {
+      if (_isSameDay(expandedDay, day)) return true;
+    }
+    return false;
+  }
+
+  void _toggleActivityDay(DateTime day, Set<DateTime> currentExpandedDays) {
+    final next = <DateTime>{...currentExpandedDays};
+    final existing = next.where((expandedDay) => _isSameDay(expandedDay, day));
+    if (existing.isNotEmpty) {
+      next.removeWhere((expandedDay) => _isSameDay(expandedDay, day));
+    } else {
+      next.add(_asDay(day));
+    }
+    _expandedActivityDaysNotifier.value = next;
+  }
+
+  DateTime _asDay(DateTime value) => DateTime(value.year, value.month, value.day);
+
+  bool _isSameDay(DateTime a, DateTime b) => _asDay(a) == _asDay(b);
 
   Widget _buildEmptyState() {
     return Padding(
@@ -1018,7 +1139,7 @@ class _HomeContent extends StatelessWidget {
               : 'Paid by $actorName');
     final timeLabel = entry.time.format(context);
     final normalizedName = actorName.toLowerCase().trim();
-    final colorValue = userColorByName[normalizedName];
+    final colorValue = widget.userColorByName[normalizedName];
     final baseColor = colorValue == null ? null : Color(colorValue);
     final bgColor = baseColor == null
         ? (entry.isCredit ? AppColors.greenLight : AppColors.redLight)
@@ -1028,6 +1149,14 @@ class _HomeContent extends StatelessWidget {
     final actionLabel = entry.kind == ExpenseEntryKind.amountAdded
         ? 'Added by'
         : '';
+
+    // Recent activity ⋮ menu (split / assign) only for expenses paid from cash, not a bank.
+    final isCashSourcedExpense =
+        entry.kind == ExpenseEntryKind.expense &&
+        AmountAddedByUserPage.sourceLabel(entry) ==
+            AmountAddedByUserPage.cashSourceLabel;
+    final showExpenseOverflowMenu =
+        entry.ownerUid == widget.currentUserUid && isCashSourcedExpense;
 
     return InkWell(
       onTap: () => showDialog<void>(
@@ -1115,8 +1244,7 @@ class _HomeContent extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            if (entry.kind == ExpenseEntryKind.expense &&
-                                entry.ownerUid == currentUserUid)
+                            if (showExpenseOverflowMenu)
                               PopupMenuButton<String>(
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(
@@ -1126,7 +1254,7 @@ class _HomeContent extends StatelessWidget {
                                 icon: const Icon(Icons.more_vert, size: 18),
                                 onSelected: (value) async {
                                   if (value == 'split_assign') {
-                                    await onSplitAssign(entry);
+                                    await widget.onSplitAssign(entry);
                                   } else if (value == 'assign_to') {
                                     await _showReassignPaidToSheet(
                                       context,
@@ -1145,8 +1273,7 @@ class _HomeContent extends StatelessWidget {
                                   ),
                                 ],
                               ),
-                            if (entry.kind == ExpenseEntryKind.expense &&
-                                entry.ownerUid == currentUserUid)
+                            if (showExpenseOverflowMenu)
                               const SizedBox(width: 4),
                             FittedBox(
                               fit: BoxFit.scaleDown,
@@ -1220,11 +1347,11 @@ class _HomeContent extends StatelessWidget {
                 Flexible(
                   child: ListView.separated(
                     shrinkWrap: true,
-                    itemCount: paidToTargets.length,
+                    itemCount: widget.paidToTargets.length,
                     separatorBuilder: (context, index) =>
                         const SizedBox(height: 8),
                     itemBuilder: (context, index) {
-                      final name = paidToTargets[index];
+                      final name = widget.paidToTargets[index];
                       final selected = name == current;
                       return Material(
                         color: selected
@@ -1258,7 +1385,7 @@ class _HomeContent extends StatelessWidget {
       },
     );
     if (selected == null || selected == current) return;
-    await onReassignPaidTo(entry, selected);
+    await widget.onReassignPaidTo(entry, selected);
   }
 }
 
@@ -1548,26 +1675,6 @@ class _ActivityDetailsDialog extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-
-  const _SectionHeader({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4),
-      child: Text(
-        title,
-        style: AppTextStyles.caption.copyWith(
-          color: AppColors.textSecondary,
-          fontWeight: FontWeight.w600,
-        ),
       ),
     );
   }
