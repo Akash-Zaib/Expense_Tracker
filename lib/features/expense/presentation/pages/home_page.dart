@@ -31,7 +31,7 @@ class _HomePageState extends State<HomePage> {
   late final CurrentUserContext _currentUserContext;
   late final UsersDirectoryDataSource _usersDirectory;
   late final ValueNotifier<int> _currentNavIndexNotifier;
-  late final ValueNotifier<DateTime> _selectedDateNotifier;
+  late final ValueNotifier<DateTimeRange> _selectedDateRangeNotifier;
   late final ValueNotifier<String> _currentUserNameNotifier;
   late final ValueNotifier<Map<String, int>> _userColorByNameNotifier;
   late final ValueNotifier<List<String>> _userNamesNotifier;
@@ -62,8 +62,9 @@ class _HomePageState extends State<HomePage> {
 
     // Default to today and react instantly to date changes.
     final now = DateTime.now();
-    _selectedDateNotifier = ValueNotifier<DateTime>(
-      DateTime(now.year, now.month, now.day),
+    final today = DateTime(now.year, now.month, now.day);
+    _selectedDateRangeNotifier = ValueNotifier<DateTimeRange>(
+      DateTimeRange(start: today, end: today),
     );
 
     _pages = [
@@ -78,7 +79,7 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _usersSubscription?.cancel();
     _currentNavIndexNotifier.dispose();
-    _selectedDateNotifier.dispose();
+    _selectedDateRangeNotifier.dispose();
     _currentUserNameNotifier.dispose();
     _userColorByNameNotifier.dispose();
     _userNamesNotifier.dispose();
@@ -118,30 +119,42 @@ class _HomePageState extends State<HomePage> {
     return AnimatedBuilder(
       animation: Listenable.merge([
         _transactionsStore,
-        _selectedDateNotifier,
+        _selectedDateRangeNotifier,
         _currentUserNameNotifier,
         _userColorByNameNotifier,
         _userNamesNotifier,
         _uidByNormalizedNameNotifier,
       ]),
       builder: (context, _) {
-        final selectedDate = _selectedDateNotifier.value;
+        final selectedRange = _selectedDateRangeNotifier.value;
+        final rangeStart = DateTime(
+          selectedRange.start.year,
+          selectedRange.start.month,
+          selectedRange.start.day,
+        );
+        final rangeEnd = DateTime(
+          selectedRange.end.year,
+          selectedRange.end.month,
+          selectedRange.end.day,
+        );
         final currentUserName = _currentUserNameNotifier.value;
         final userColorByName = _userColorByNameNotifier.value;
         final allUserNames = _userNamesNotifier.value;
         final uidByNormalizedName = _uidByNormalizedNameNotifier.value;
-        final dateRange = DateFormat('d MMM yyyy').format(selectedDate);
+        final dateFmt = DateFormat('d MMM yyyy');
+        final dateRange = rangeStart == rangeEnd
+            ? dateFmt.format(rangeStart)
+            : '${dateFmt.format(rangeStart)} - ${dateFmt.format(rangeEnd)}';
         final allEntries = _transactionsStore.transactions;
-        final entries =
+
+        bool isWithinSelectedRange(ExpenseEntry entry) {
+          final day = DateTime(entry.date.year, entry.date.month, entry.date.day);
+          return !day.isBefore(rangeStart) && !day.isAfter(rangeEnd);
+        }
+
+        final entriesForCards =
             allEntries
-                .where((entry) {
-                  final day = DateTime(
-                    entry.date.year,
-                    entry.date.month,
-                    entry.date.day,
-                  );
-                  return day == selectedDate;
-                })
+                .where(isWithinSelectedRange)
                 .toList(growable: false)
               ..sort((a, b) {
                 final dateCmp = b.date.compareTo(a.date);
@@ -161,12 +174,12 @@ class _HomePageState extends State<HomePage> {
             return bMinutes.compareTo(aMinutes);
           });
 
-        // Use the same date-filtered list for all "home" calculations.
-        final availableBalance = entries.fold<double>(
-          0,
-          (runningTotal, e) =>
-              runningTotal + (e.isCredit ? e.amount : -e.amount),
-        );
+        // Available Balance is cumulative up to selected end date (inclusive).
+        final availableBalance = allEntries.fold<double>(0, (runningTotal, e) {
+          final day = DateTime(e.date.year, e.date.month, e.date.day);
+          if (day.isAfter(rangeEnd)) return runningTotal;
+          return runningTotal + (e.isCredit ? e.amount : -e.amount);
+        });
 
         // Normalize names to avoid duplicate tabs for the same user
         // (e.g. "Badar Khan" vs "badar khan ").
@@ -189,7 +202,7 @@ class _HomePageState extends State<HomePage> {
         for (final name in allUserNames) {
           addCanonical(name);
         }
-        for (final entry in entries) {
+        for (final entry in entriesForCards) {
           addCanonical(
             entry.paidTo.trim().isEmpty ? entry.ownerName : entry.paidTo,
           );
@@ -246,7 +259,7 @@ class _HomePageState extends State<HomePage> {
         // Group "expenses shown on the card" by `paidTo` (who the expense is
         // assigned to), not by `ownerUid` (who created the record).
         final expenseByPaidToNormalized = <String, double>{};
-        for (final e in entries.where(
+        for (final e in entriesForCards.where(
           (t) => !t.isCredit && t.kind == ExpenseEntryKind.expense,
         )) {
           final paidToNormalized = e.paidTo.trim().toLowerCase();
@@ -257,7 +270,7 @@ class _HomePageState extends State<HomePage> {
         final cards = displayUsers
             .map((name) {
               final normalized = name.toLowerCase().trim();
-              final cardEntries = allEntries
+              final cardEntries = entriesForCards
                   .where((e) => e.kind == ExpenseEntryKind.expense)
                   .where((e) => e.paidTo.trim().toLowerCase() == normalized)
                   .toList(growable: false);
@@ -294,7 +307,7 @@ class _HomePageState extends State<HomePage> {
           paidToTargets: paidToTargets,
           currentUserUid: _currentUserUid,
           userColorByName: userColorByName,
-          entries: entries,
+          entries: entriesForCards,
           activityEntries: activityEntries,
           onOpenAmountAddedBreakdown: () {
             Navigator.push(
@@ -309,7 +322,7 @@ class _HomePageState extends State<HomePage> {
           },
           onAddCash: _navigateToAddAmount,
           onSubmitExpense: _navigateToSubmitExpense,
-          onPickDateRange: _pickDateRange,
+          onPickDateRange: _showDateSelectionOptions,
           onReassignPaidTo: _reassignPaidTo,
           onSplitAssign: (entry) => _showSplitAssignSheet(
             entry: entry,
@@ -405,12 +418,81 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  Future<void> _pickDateRange() async {
+  Future<void> _showDateSelectionOptions() async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ListTile(
+                  leading: const Icon(Icons.calendar_today_outlined),
+                  title: const Text('Current date'),
+                  subtitle: const Text('Use today automatically'),
+                  onTap: () => Navigator.pop(ctx, 'today'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.today_outlined),
+                  title: const Text('Single date'),
+                  subtitle: const Text('Pick one specific date'),
+                  onTap: () => Navigator.pop(ctx, 'single'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.date_range_outlined),
+                  title: const Text('Date range'),
+                  subtitle: const Text('Pick start and end date'),
+                  onTap: () => Navigator.pop(ctx, 'range'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (choice == null) return;
+    if (choice == 'today') {
+      _selectCurrentDate();
+      return;
+    }
+    if (choice == 'single') {
+      await _pickSingleDate();
+      return;
+    }
+    await _pickDateRange();
+  }
+
+  void _selectCurrentDate() {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final initial = _selectedDateNotifier.value.isAfter(today)
-        ? today
-        : _selectedDateNotifier.value;
+    _selectedDateRangeNotifier.value = DateTimeRange(start: today, end: today);
+  }
+
+  Future<void> _pickSingleDate() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final currentRange = _selectedDateRangeNotifier.value;
+    var initial = DateTime(
+      currentRange.end.year,
+      currentRange.end.month,
+      currentRange.end.day,
+    );
+    if (initial.isAfter(today)) initial = today;
 
     final picked = await showDatePicker(
       context: context,
@@ -431,12 +513,89 @@ class _HomePageState extends State<HomePage> {
         );
       },
     );
-
     if (picked == null) return;
-    _selectedDateNotifier.value = DateTime(
-      picked.year,
-      picked.month,
-      picked.day,
+    final day = DateTime(picked.year, picked.month, picked.day);
+    _selectedDateRangeNotifier.value = DateTimeRange(start: day, end: day);
+  }
+
+  Future<void> _pickDateRange() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final currentRange = _selectedDateRangeNotifier.value;
+    var initialStart = DateTime(
+      currentRange.start.year,
+      currentRange.start.month,
+      currentRange.start.day,
+    );
+    var initialEnd = DateTime(
+      currentRange.end.year,
+      currentRange.end.month,
+      currentRange.end.day,
+    );
+    if (initialStart.isAfter(today)) initialStart = today;
+    if (initialEnd.isAfter(today)) initialEnd = today;
+    if (initialEnd.isBefore(initialStart)) initialEnd = initialStart;
+
+    final startPicked = await showDatePicker(
+      context: context,
+      initialDate: initialStart,
+      firstDate: DateTime(2020),
+      lastDate: today,
+      helpText: 'Select start date',
+      confirmText: 'Next',
+      cancelText: 'Cancel',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.primary,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: AppColors.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (startPicked == null) return;
+    if (!mounted) return;
+
+    final startDay = DateTime(
+      startPicked.year,
+      startPicked.month,
+      startPicked.day,
+    );
+    final endInitial = initialEnd.isBefore(startDay) ? startDay : initialEnd;
+    final endPicked = await showDatePicker(
+      context: context,
+      initialDate: endInitial,
+      firstDate: startDay,
+      lastDate: today,
+      helpText: 'Select end date',
+      confirmText: 'Apply',
+      cancelText: 'Cancel',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.primary,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: AppColors.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (endPicked == null) return;
+    if (!mounted) return;
+
+    final endDay = DateTime(endPicked.year, endPicked.month, endPicked.day);
+    _selectedDateRangeNotifier.value = DateTimeRange(
+      start: startDay,
+      end: endDay,
     );
   }
 
@@ -641,6 +800,7 @@ class _HomeContent extends StatefulWidget {
 class _HomeContentState extends State<_HomeContent> {
   final ValueNotifier<Set<DateTime>> _expandedActivityDaysNotifier =
       ValueNotifier<Set<DateTime>>(<DateTime>{});
+  bool _didSetDefaultExpandedDay = false;
 
   @override
   void dispose() {
@@ -959,6 +1119,21 @@ class _HomeContentState extends State<_HomeContent> {
     if (widget.activityEntries.isEmpty &&
         _expandedActivityDaysNotifier.value.isNotEmpty) {
       _expandedActivityDaysNotifier.value = <DateTime>{};
+    }
+
+    if (!_didSetDefaultExpandedDay && groupKeys.isNotEmpty) {
+      final today = _asDay(DateTime.now());
+      DateTime? todayKey;
+      for (final day in groupKeys) {
+        if (_isSameDay(day, today)) {
+          todayKey = _asDay(day);
+          break;
+        }
+      }
+      _expandedActivityDaysNotifier.value = todayKey == null
+          ? <DateTime>{}
+          : <DateTime>{todayKey};
+      _didSetDefaultExpandedDay = true;
     }
 
     return Container(

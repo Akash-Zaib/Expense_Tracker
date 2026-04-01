@@ -313,6 +313,10 @@ class _BankBalancesPageState extends State<BankBalancesPage> {
           return minutes(b.time).compareTo(minutes(a.time));
         });
 
+        final totalAdded = added.fold<double>(0, (sum, e) => sum + e.amount);
+        final totalSpent = spent.fold<double>(0, (sum, e) => sum + e.amount);
+        final remaining = totalAdded - totalSpent;
+
         String formatTimeOfDay(TimeOfDay t) {
           return MaterialLocalizations.of(
             ctx,
@@ -419,6 +423,47 @@ class _BankBalancesPageState extends State<BankBalancesPage> {
                     'Belongs to: ${row.belongsTo}',
                     style: AppTextStyles.caption,
                   ),
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: AppColors.border.withValues(alpha: 0.85),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Summary (All Time)',
+                          style: AppTextStyles.bodyMedium.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _detailRow(
+                          'Total Amount',
+                          fmt.format(totalAdded),
+                          valueColor: const Color(0xFF16A34A),
+                        ),
+                        _detailRow(
+                          'Total Spent',
+                          fmt.format(totalSpent),
+                          valueColor: AppColors.redDark,
+                        ),
+                        _detailRow(
+                          'Remaining Amount',
+                          fmt.format(remaining),
+                          valueColor: remaining >= 0
+                              ? const Color(0xFF16A34A)
+                              : AppColors.redDark,
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 14),
                   Text(
                     'Amount Added',
@@ -459,6 +504,36 @@ class _BankBalancesPageState extends State<BankBalancesPage> {
           ],
         );
       },
+    );
+  }
+
+  Widget _detailRow(
+    String label,
+    String value, {
+    Color? valueColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: AppTextStyles.caption.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            value,
+            style: AppTextStyles.bodyMedium.copyWith(
+              fontWeight: FontWeight.w700,
+              color: valueColor ?? AppColors.textPrimary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

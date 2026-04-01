@@ -29,13 +29,13 @@ class BanksStore extends ChangeNotifier {
     required SubmitAllBanks submitAllBanks,
     required WatchBanks watchBanks,
     required CurrentUserContext currentUserContext,
-  })  : getBanks = getBanks,
-        addBank = addBank,
-        addBankForUid = addBankForUid,
-        removeBank = removeBank,
-        submitAllBanks = submitAllBanks,
-        watchBanks = watchBanks,
-        _currentUserContext = currentUserContext;
+  }) : getBanks = getBanks,
+       addBank = addBank,
+       addBankForUid = addBankForUid,
+       removeBank = removeBank,
+       submitAllBanks = submitAllBanks,
+       watchBanks = watchBanks,
+       _currentUserContext = currentUserContext;
 
   final List<Bank> _banks = [];
   bool _loaded = false;
@@ -77,10 +77,7 @@ class BanksStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> addNew({
-    required String name,
-    String? accountNumber,
-  }) async {
+  Future<void> addNew({required String name, String? accountNumber}) async {
     final normalizedName = name.trim();
     final normalizedAcc = accountNumber?.trim();
 
@@ -88,7 +85,11 @@ class BanksStore extends ChangeNotifier {
 
     return addNewForOwner(
       ownerUid: _currentUserContext.uid,
-      ownerName: _currentUserContext.auth.currentUser?.displayName?.trim().isNotEmpty == true
+      ownerName:
+          _currentUserContext.auth.currentUser?.displayName
+                  ?.trim()
+                  .isNotEmpty ==
+              true
           ? _currentUserContext.auth.currentUser!.displayName!.trim()
           : 'User',
       name: normalizedName,
@@ -129,9 +130,7 @@ class BanksStore extends ChangeNotifier {
 
   Future<void> deleteBank(Bank bank) async {
     await removeBank(bank);
-    _banks.removeWhere(
-      (b) => b.id == bank.id && b.ownerUid == bank.ownerUid,
-    );
+    _banks.removeWhere((b) => b.id == bank.id && b.ownerUid == bank.ownerUid);
     notifyListeners();
   }
 
@@ -157,4 +156,3 @@ class BanksStore extends ChangeNotifier {
     super.dispose();
   }
 }
-

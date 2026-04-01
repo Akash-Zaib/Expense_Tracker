@@ -128,11 +128,19 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
   }
 
   Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final monthStart = DateTime(today.year, today.month, 1);
+    var initial = _selectedDate ?? today;
+    if (initial.isBefore(monthStart) || initial.isAfter(today)) {
+      initial = today;
+    }
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
+      initialDate: initial,
+      firstDate: monthStart,
+      lastDate: today,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -196,6 +204,31 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
     if (!mounted) return;
 
     final txs = _transactionsStore.transactions;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final expenseDate = _selectedDate ?? today;
+    if (expenseDate.year != today.year || expenseDate.month != today.month) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'You can add expenses only for the current month.',
+          ),
+          backgroundColor: AppColors.redDark,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+    final monthlyScopeEntries = txs.where((entry) {
+      if (entry.kind == ExpenseEntryKind.amountAdded) {
+        return true; // Carry forward all added amounts from previous months.
+      }
+      return entry.date.year == expenseDate.year &&
+          entry.date.month == expenseDate.month;
+    }).toList(growable: false);
     final uidMap = {
       ownerNameEarly.toLowerCase().trim(): _currentUserContext.uid,
     };
@@ -207,7 +240,7 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
     final remainingForSource = AmountAddedByUserPage.remainingForBankSourceRaw(
       displayName: ownerNameEarly,
       bankLabel: sourceLabel,
-      entries: txs,
+      entries: monthlyScopeEntries,
       uidByNormalizedName: uidMap,
     );
     if (amount > remainingForSource) {
@@ -232,7 +265,7 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
       return;
     }
 
-    final availableBalance = txs.fold<double>(
+    final availableBalance = monthlyScopeEntries.fold<double>(
       0,
       (sum, e) => sum + (e.isCredit ? e.amount : -e.amount),
     );
@@ -240,9 +273,6 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
       _showInsufficientBalanceDialog(availableBalance: availableBalance);
       return;
     }
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
 
     final ownerUid = _currentUserContext.uid;
     final ownerName = ownerNameEarly;
@@ -257,7 +287,7 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
           : (_selectedCategory ?? 'Expense'),
       amount: amount,
       category: _selectedCategory ?? 'Miscellaneous Expenses',
-      date: _selectedDate ?? today,
+      date: expenseDate,
       time: _selectedTime ?? TimeOfDay.fromDateTime(now),
       paidBy: ownerName,
       addedBy: ownerName,

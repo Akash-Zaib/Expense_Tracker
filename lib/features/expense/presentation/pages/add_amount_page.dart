@@ -24,6 +24,7 @@ class AddAmountResult {
 class BankOption {
   final String name;
   final String shortCode;
+
   /// Stable id for selection when multiple users have the same [name].
   final String selectionKey;
   final IconData icon;
@@ -107,7 +108,9 @@ class _AddAmountPageState extends State<AddAmountPage> {
           content: const Text('Please enter a valid amount'),
           backgroundColor: AppColors.redDark,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
       return;
@@ -132,10 +135,10 @@ class _AddAmountPageState extends State<AddAmountPage> {
     final currentUid = _currentUserContext.uid;
     final banks = <BankOption>[
       _cashOption,
-      ..._banksStore.banks
-          .where((b) => b.ownerUid == currentUid)
-          .map((b) {
-        final short = b.name.trim().isEmpty ? 'BANK' : b.name.trim().split(' ').first;
+      ..._banksStore.banks.where((b) => b.ownerUid == currentUid).map((b) {
+        final short = b.name.trim().isEmpty
+            ? 'BANK'
+            : b.name.trim().split(' ').first;
         final acc = (b.accountNumber == null || b.accountNumber!.trim().isEmpty)
             ? null
             : 'A/C: ${b.accountNumber}';
@@ -235,7 +238,10 @@ class _AddAmountPageState extends State<AddAmountPage> {
               GestureDetector(
                 onTap: _showBankSelectionSheet,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.inputBackground,
                     borderRadius: BorderRadius.circular(12),
@@ -254,8 +260,9 @@ class _AddAmountPageState extends State<AddAmountPage> {
                           _selectedBank?.name ?? 'Select Source',
                           style: _selectedBank != null
                               ? AppTextStyles.bodyMedium
-                              : AppTextStyles.bodyRegular
-                                  .copyWith(color: AppColors.textSecondary),
+                              : AppTextStyles.bodyRegular.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -286,10 +293,7 @@ class _AddAmountPageState extends State<AddAmountPage> {
               // Confirm button
               SizedBox(
                 width: double.infinity,
-                child: CustomButton(
-                  text: 'Confirm',
-                  onPressed: _confirm,
-                ),
+                child: CustomButton(text: 'Confirm', onPressed: _confirm),
               ),
             ],
           ),
@@ -405,8 +409,10 @@ class _BankSelectionSheet extends StatelessWidget {
                   final isSelected =
                       selectedBank?.selectionKey == bank.selectionKey;
                   return ListTile(
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 4,
+                    ),
                     leading: Container(
                       width: 40,
                       height: 40,
@@ -439,10 +445,16 @@ class _BankSelectionSheet extends StatelessWidget {
                               : AppColors.textSecondary.withValues(alpha: 0.4),
                           width: 2,
                         ),
-                        color: isSelected ? AppColors.primary : Colors.transparent,
+                        color: isSelected
+                            ? AppColors.primary
+                            : Colors.transparent,
                       ),
                       child: isSelected
-                          ? const Icon(Icons.check, size: 14, color: Colors.white)
+                          ? const Icon(
+                              Icons.check,
+                              size: 14,
+                              color: Colors.white,
+                            )
                           : null,
                     ),
                     onTap: () => onSelected(bank),
