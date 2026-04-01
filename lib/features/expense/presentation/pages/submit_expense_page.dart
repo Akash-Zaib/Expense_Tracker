@@ -222,13 +222,15 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
       );
       return;
     }
-    final monthlyScopeEntries = txs.where((entry) {
-      if (entry.kind == ExpenseEntryKind.amountAdded) {
-        return true; // Carry forward all added amounts from previous months.
-      }
-      return entry.date.year == expenseDate.year &&
-          entry.date.month == expenseDate.month;
-    }).toList(growable: false);
+    final monthlyScopeEntries = txs
+        .where((entry) {
+          if (entry.kind == ExpenseEntryKind.amountAdded) {
+            return true; // Carry forward all added amounts from previous months.
+          }
+          return entry.date.year == expenseDate.year &&
+              entry.date.month == expenseDate.month;
+        })
+        .toList(growable: false);
     final uidMap = {
       ownerNameEarly.toLowerCase().trim(): _currentUserContext.uid,
     };
@@ -1051,89 +1053,89 @@ class _CategorySelectionSheetState extends State<_CategorySelectionSheet> {
               ),
             ],
             // Add Custom Category section
-            Padding(
-              padding: const EdgeInsets.only(
-                left: 2,
-                right: 2,
-                top: 16,
-                bottom: 12,
-              ),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: _silverDivider),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Add Custom Category',
-                      style: AppTextStyles.caption.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: AppColors.inputBackground,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.border),
-                            ),
-                            child: TextField(
-                              controller: _customCategoryController,
-                              style: AppTextStyles.bodyMedium,
-                              decoration: InputDecoration(
-                                hintText: 'Enter Expense Category',
-                                hintStyle: AppTextStyles.bodyRegular.copyWith(
-                                  color: AppColors.textSecondary,
-                                ),
-                                border: InputBorder.none,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        GestureDetector(
-                          onTap: () {
-                            final custom = _customCategoryController.text
-                                .trim();
-                            if (custom.isNotEmpty) {
-                              widget.onSelected(
-                                category: custom,
-                                assignee: null,
-                              );
-                            }
-                          },
-                          child: Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.add,
-                              color: Colors.white,
-                              size: 22,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            // Padding(
+            //   padding: const EdgeInsets.only(
+            //     left: 2,
+            //     right: 2,
+            //     top: 16,
+            //     bottom: 12,
+            //   ),
+            //   child: Container(
+            //     padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+            //     decoration: BoxDecoration(
+            //       color: Colors.white,
+            //       borderRadius: BorderRadius.circular(14),
+            //       border: Border.all(color: _silverDivider),
+            //     ),
+            //     child: Column(
+            //       crossAxisAlignment: CrossAxisAlignment.start,
+            //       children: [
+            //         Text(
+            //           'Add Custom Category',
+            //           style: AppTextStyles.caption.copyWith(
+            //             fontWeight: FontWeight.w600,
+            //             color: AppColors.textPrimary,
+            //           ),
+            //         ),
+            //         const SizedBox(height: 10),
+            //         Row(
+            //           children: [
+            //             Expanded(
+            //               child: Container(
+            //                 decoration: BoxDecoration(
+            //                   color: AppColors.inputBackground,
+            //                   borderRadius: BorderRadius.circular(12),
+            //                   border: Border.all(color: AppColors.border),
+            //                 ),
+            //                 child: TextField(
+            //                   controller: _customCategoryController,
+            //                   style: AppTextStyles.bodyMedium,
+            //                   decoration: InputDecoration(
+            //                     hintText: 'Enter Expense Category',
+            //                     hintStyle: AppTextStyles.bodyRegular.copyWith(
+            //                       color: AppColors.textSecondary,
+            //                     ),
+            //                     border: InputBorder.none,
+            //                     contentPadding: const EdgeInsets.symmetric(
+            //                       horizontal: 16,
+            //                       vertical: 12,
+            //                     ),
+            //                   ),
+            //                 ),
+            //               ),
+            //             ),
+            //             const SizedBox(width: 10),
+            //             GestureDetector(
+            //               onTap: () {
+            //                 final custom = _customCategoryController.text
+            //                     .trim();
+            //                 if (custom.isNotEmpty) {
+            //                   widget.onSelected(
+            //                     category: custom,
+            //                     assignee: null,
+            //                   );
+            //                 }
+            //               },
+            //               child: Container(
+            //                 width: 44,
+            //                 height: 44,
+            //                 decoration: BoxDecoration(
+            //                   color: AppColors.primary,
+            //                   borderRadius: BorderRadius.circular(12),
+            //                 ),
+            //                 child: const Icon(
+            //                   Icons.add,
+            //                   color: Colors.white,
+            //                   size: 22,
+            //                 ),
+            //               ),
+            //             ),
+            //           ],
+            //         ),
+            //       ],
+            //     ),
+            //   ),
+            // ),
           ],
         ),
       ),
