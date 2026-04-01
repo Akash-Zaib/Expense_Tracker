@@ -6,6 +6,7 @@ import '../models/bank_model.dart';
 
 abstract class BanksRemoteDataSource {
   Future<List<BankModel>> getBanks();
+  Stream<List<BankModel>> watchBanks();
   Future<void> addBank(BankModel bank);
   Future<void> addBankForUid({
     required String ownerUid,
@@ -23,9 +24,22 @@ class BanksRemoteDataSourceImpl implements BanksRemoteDataSource {
   @override
   Future<List<BankModel>> getBanks() async {
     // All `users/{uid}/banks` subcollections (requires global read on banks).
-    final snapshot =
-        await _userScope.firestore.collectionGroup('banks').get();
+    final snapshot = await _userScope.firestore
+        .collectionGroup('banks')
+        .get();
+    return _mapBanksSnapshot(snapshot);
+  }
 
+  @override
+  Stream<List<BankModel>> watchBanks() {
+    return _userScope.firestore.collectionGroup('banks').snapshots().map(
+      _mapBanksSnapshot,
+    );
+  }
+
+  List<BankModel> _mapBanksSnapshot(
+    QuerySnapshot<Map<String, dynamic>> snapshot,
+  ) {
     final currentName =
         _userScope.auth.currentUser?.displayName?.trim();
     final fallbackOwnerName =

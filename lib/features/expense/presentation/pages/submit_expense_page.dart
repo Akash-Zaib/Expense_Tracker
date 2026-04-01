@@ -114,13 +114,14 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
     _currentUserContext = sl<CurrentUserContext>();
     _usersDirectory = sl<UsersDirectoryDataSource>();
     _transactionsStore = sl<TransactionsStore>();
-    _banksStore.load();
+    _banksStore.startWatching();
     _transactionsStore.load();
     _loadPaidToTargetsAndDirectory();
   }
 
   @override
   void dispose() {
+    _banksStore.stopWatching();
     _amountController.dispose();
     _descriptionController.dispose();
     super.dispose();
@@ -328,11 +329,12 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
 
   // ── Bank Selection Bottom Sheet ──────────────────────────
   void _showBankSelectionSheet() {
+    final currentUid = _currentUserContext.uid;
     final banks = <BankOption>[
       // Always allow cash source
       ...appBankOptions.where((b) => b.shortCode == 'Cash'),
-      // All users' banks (same list as Wallet / collection group).
-      ..._banksStore.banks.map((b) {
+      // Only current logged-in user's banks.
+      ..._banksStore.banks.where((b) => b.ownerUid == currentUid).map((b) {
         final short = b.name.trim().isEmpty
             ? 'BANK'
             : b.name.trim().split(' ').first;

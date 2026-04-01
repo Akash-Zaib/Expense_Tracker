@@ -6,7 +6,9 @@ import '../../domain/usecases/add_bank_for_uid.dart';
 import '../../domain/usecases/get_banks.dart';
 import '../../domain/usecases/remove_bank.dart';
 import '../../domain/usecases/submit_all_banks.dart';
+import '../../domain/usecases/watch_banks.dart';
 import '../../../../core/firebase/current_user_context.dart';
+import 'dart:async';
 
 class BanksStore extends ChangeNotifier {
   final GetBanks getBanks;
@@ -14,7 +16,10 @@ class BanksStore extends ChangeNotifier {
   final AddBankForUid addBankForUid;
   final RemoveBank removeBank;
   final SubmitAllBanks submitAllBanks;
+  final WatchBanks watchBanks;
   final CurrentUserContext _currentUserContext;
+  StreamSubscription<List<Bank>>? _watchSub;
+  bool _watching = false;
 
   BanksStore({
     required GetBanks getBanks,
@@ -22,12 +27,14 @@ class BanksStore extends ChangeNotifier {
     required AddBankForUid addBankForUid,
     required RemoveBank removeBank,
     required SubmitAllBanks submitAllBanks,
+    required WatchBanks watchBanks,
     required CurrentUserContext currentUserContext,
   })  : getBanks = getBanks,
         addBank = addBank,
         addBankForUid = addBankForUid,
         removeBank = removeBank,
         submitAllBanks = submitAllBanks,
+        watchBanks = watchBanks,
         _currentUserContext = currentUserContext;
 
   final List<Bank> _banks = [];
@@ -35,6 +42,31 @@ class BanksStore extends ChangeNotifier {
 
   List<Bank> get banks => List.unmodifiable(_banks);
   bool get loaded => _loaded;
+  bool get watching => _watching;
+
+  void startWatching() {
+    _watching = true;
+    _watchSub?.cancel();
+    _watchSub = watchBanks().listen(
+      (items) {
+        _banks
+          ..clear()
+          ..addAll(items);
+        _loaded = true;
+        notifyListeners();
+      },
+      onError: (_) async {
+        // Keep app responsive even if stream errors temporarily.
+        await load();
+      },
+    );
+  }
+
+  void stopWatching() {
+    _watching = false;
+    _watchSub?.cancel();
+    _watchSub = null;
+  }
 
   Future<void> load() async {
     final items = await getBanks();
@@ -117,6 +149,12 @@ class BanksStore extends ChangeNotifier {
       );
     }
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _watchSub?.cancel();
+    super.dispose();
   }
 }
 

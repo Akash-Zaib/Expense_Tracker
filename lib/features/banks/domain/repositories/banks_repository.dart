@@ -5,6 +5,7 @@ abstract class BanksRepository {
   /// - Firestore path: `workspaces/{workspaceId}/banks/{bankId}`
   /// - Security: allow only workspace members to read/write
   Future<List<Bank>> getBanks();
+  Stream<List<Bank>> watchBanks();
 
   /// Firebase later: `set()` bank doc under the workspace.
   Future<void> addBank(Bank bank);

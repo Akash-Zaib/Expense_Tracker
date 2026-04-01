@@ -17,6 +17,11 @@ class BanksRepositoryImpl implements BanksRepository {
   }
 
   @override
+  Stream<List<Bank>> watchBanks() {
+    return remoteDataSource.watchBanks();
+  }
+
+  @override
   Future<void> addBank(Bank bank) async {
     final model = BankModel(
       id: bank.id,

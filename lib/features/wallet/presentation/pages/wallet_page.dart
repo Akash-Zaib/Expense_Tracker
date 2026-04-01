@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/di/injection_container.dart';
-import '../../../../core/firebase/users_directory_data_source.dart';
 import '../../../../shared/widgets/current_user_name_text.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../expense/presentation/store/transactions_store.dart';
@@ -28,7 +28,7 @@ class _WalletPageState extends State<WalletPage> {
     _transactionsStore = sl<TransactionsStore>();
     _banksStore = sl<BanksStore>();
 
-    _banksStore.load();
+    _banksStore.startWatching();
     _transactionsStore.load(force: true, limit: 2000);
 
     final auth = sl<FirebaseAuth>();
@@ -38,7 +38,7 @@ class _WalletPageState extends State<WalletPage> {
       if (uid == null || uid.isEmpty) return;
       if (lastUid == uid) return;
       lastUid = uid;
-      _banksStore.load();
+      _banksStore.startWatching();
       _transactionsStore.load(force: true, limit: 2000);
     });
   }
@@ -46,6 +46,7 @@ class _WalletPageState extends State<WalletPage> {
   @override
   void dispose() {
     _authSub?.cancel();
+    _banksStore.stopWatching();
     super.dispose();
   }
 
@@ -246,29 +247,12 @@ class _AddBankBottomSheet extends StatefulWidget {
 class _AddBankBottomSheetState extends State<_AddBankBottomSheet> {
   late final TextEditingController _nameController;
   late final TextEditingController _accController;
-  late final UsersDirectoryDataSource _usersDirectory;
-
-  String? _selectedOwnerName;
-  String? _selectedOwnerUid;
-  Map<String, String> _uidByName = const {};
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController();
     _accController = TextEditingController();
-    _usersDirectory = sl<UsersDirectoryDataSource>();
-    _loadUsers();
-  }
-
-  Future<void> _loadUsers() async {
-    final map = await _usersDirectory.getAllProfilesByUid();
-    final users = map.values.toList()
-      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    if (!mounted) return;
-    setState(() {
-      _uidByName = {for (final u in users) u.name: u.uid};
-    });
   }
 
   @override
@@ -311,27 +295,6 @@ class _AddBankBottomSheetState extends State<_AddBankBottomSheet> {
             ),
             const SizedBox(height: 8),
             Text('Add custom bank', style: AppTextStyles.caption),
-            const SizedBox(height: 8),
-            Text('Belong to', style: AppTextStyles.caption),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: _selectedOwnerName,
-              items: _uidByName.entries
-                  .map(
-                    (e) => DropdownMenuItem<String>(
-                      value: e.key,
-                      child: Text(e.key),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (val) {
-                setState(() {
-                  _selectedOwnerName = val;
-                  _selectedOwnerUid = val == null ? null : _uidByName[val];
-                });
-              },
-              decoration: const InputDecoration(border: OutlineInputBorder()),
-            ),
             const SizedBox(height: 10),
             TextField(
               controller: _nameController,
@@ -344,7 +307,10 @@ class _AddBankBottomSheetState extends State<_AddBankBottomSheet> {
             const SizedBox(height: 10),
             TextField(
               controller: _accController,
-              keyboardType: TextInputType.number,
+              keyboardType: TextInputType.text,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
+              ],
               decoration: const InputDecoration(
                 labelText: 'Account number (optional)',
                 border: OutlineInputBorder(),
@@ -355,21 +321,10 @@ class _AddBankBottomSheetState extends State<_AddBankBottomSheet> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () async {
-                  if (_selectedOwnerUid == null || _selectedOwnerName == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Please select a user (Belong to)'),
-                      ),
-                    );
-                    return;
-                  }
                   final navigator = Navigator.of(context);
                   try {
-                    // Add bank under selected user in Firebase.
-                    // We only store owner's display name in the doc.
-                    await widget.banksStore.addNewForOwner(
-                      ownerUid: _selectedOwnerUid!,
-                      ownerName: _selectedOwnerName!,
+                    // Always add bank for the currently logged-in user.
+                    await widget.banksStore.addNew(
                       name: _nameController.text,
                       accountNumber: _accController.text,
                     );

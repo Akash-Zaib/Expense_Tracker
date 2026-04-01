@@ -1002,11 +1002,11 @@ class _HomeContentState extends State<_HomeContent> {
                         SizedBox(
                           height:
                               _isActivityDayExpanded(
-                                    groupKeys[dayIndex],
-                                    expandedDays,
-                                  )
-                                  ? 16
-                                  : 12,
+                                groupKeys[dayIndex],
+                                expandedDays,
+                              )
+                              ? 16
+                              : 12,
                         ),
                     ],
                   ],
