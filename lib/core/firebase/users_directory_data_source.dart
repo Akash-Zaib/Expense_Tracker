@@ -36,6 +36,27 @@ class UsersDirectoryDataSource {
     }, SetOptions(merge: true));
   }
 
+  Future<void> ensureUserProfile({
+    required String uid,
+    required String name,
+    required String email,
+    required int fallbackSignatureColorValue,
+  }) async {
+    final safeName = name.trim().isEmpty ? 'User' : name.trim();
+    final safeEmail = email.trim();
+    final docRef = _users.doc(uid);
+    final snap = await docRef.get();
+    final data = snap.data();
+    final existingColor = (data?['signatureColorValue'] as num?)?.toInt();
+
+    await docRef.set({
+      'name': safeName,
+      if (safeEmail.isNotEmpty) 'email': safeEmail,
+      'signatureColorValue': existingColor ?? fallbackSignatureColorValue,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   Future<Map<String, UserDirectoryProfile>> getAllProfilesByUid() async {
     final snapshot = await _users.get();
     final map = <String, UserDirectoryProfile>{};

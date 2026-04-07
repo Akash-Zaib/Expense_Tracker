@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 
 import '../../../../core/firebase/current_user_context.dart';
 import '../../domain/entities/expense_entry.dart';
@@ -18,6 +19,7 @@ class TransactionsStore extends ChangeNotifier {
   final MoveTransactionToUser _moveTransactionToUser;
   final CurrentUserContext _currentUserContext;
   final ExpenseRepository _repository;
+  static const _logTag = '[TransactionsStore]';
 
   /// Tracks which UID `_transactions` belongs to (to avoid cross-user leakage).
   String? _loadedForUid;
@@ -59,12 +61,14 @@ class TransactionsStore extends ChangeNotifier {
     _watchLimit = limit;
     _watching = true;
     _error = null;
-    notifyListeners();
 
     _watchSub?.cancel();
     _watchRetryTimer?.cancel();
     _watchSub = _repository.watchTransactions(limit: _watchLimit).listen(
       (items) {
+        debugPrint(
+          '$_logTag watch success items=${items.length} limit=$_watchLimit',
+        );
         _stopFallbackPolling();
         _transactions
           ..clear()
@@ -72,7 +76,9 @@ class TransactionsStore extends ChangeNotifier {
         _error = null;
         notifyListeners();
       },
-      onError: (e) {
+      onError: (e, st) {
+        debugPrint('$_logTag watch error=$e');
+        debugPrintStack(stackTrace: st, label: '$_logTag watch error stack');
         _error = e.toString();
         _startFallbackPolling();
         _scheduleWatchRetry();
@@ -114,11 +120,22 @@ class TransactionsStore extends ChangeNotifier {
     _inFlightLoad = () async {
       try {
         final items = await _getTransactions(limit: limit);
+        debugPrint(
+          '$_logTag load success items=${items.length} limit=$limit force=$force',
+        );
+        if (force && items.isEmpty && _transactions.isNotEmpty) {
+          debugPrint(
+            '$_logTag load preserved existing=${_transactions.length} due to transient empty fetch',
+          );
+          _error = null;
+          return;
+        }
         _transactions
           ..clear()
           ..addAll(items);
         _error = null;
       } catch (e) {
+        debugPrint('$_logTag load error=$e');
         _error = e.toString();
       } finally {
         _setLoading(false);

@@ -35,12 +35,15 @@ class _BankBalancesPageState extends State<BankBalancesPage> {
     _txStore = sl<TransactionsStore>();
     _banksStore = sl<BanksStore>();
 
-    _banksStore.load();
-    _txStore.load(force: true, limit: _kLoadLimit);
+    _banksStore.startWatching();
+    if (!_txStore.watching) {
+      _txStore.startWatching(limit: _kLoadLimit);
+    }
   }
 
   @override
   void dispose() {
+    _banksStore.stopWatching();
     super.dispose();
   }
 
@@ -68,6 +71,37 @@ class _BankBalancesPageState extends State<BankBalancesPage> {
         builder: (context, _) {
           final txs = _txStore.transactions;
           final banks = _banksStore.banks;
+          final uidByName = <String, String>{...widget.uidByNormalizedName};
+          for (final tx in txs) {
+            final key = tx.ownerName.trim().toLowerCase();
+            final uid = tx.ownerUid.trim();
+            if (key.isNotEmpty && uid.isNotEmpty) {
+              uidByName.putIfAbsent(key, () => uid);
+            }
+          }
+          for (final b in banks) {
+            final key = b.ownerName.trim().toLowerCase();
+            final uid = b.ownerUid.trim();
+            if (key.isNotEmpty && uid.isNotEmpty) {
+              uidByName.putIfAbsent(key, () => uid);
+            }
+          }
+
+          final displayUsers = <String>[...widget.displayUsers];
+          for (final tx in txs) {
+            final owner = tx.ownerName.trim();
+            if (owner.isNotEmpty &&
+                !displayUsers.any((u) => u.toLowerCase().trim() == owner.toLowerCase())) {
+              displayUsers.add(owner);
+            }
+          }
+          for (final b in banks) {
+            final owner = b.ownerName.trim();
+            if (owner.isNotEmpty &&
+                !displayUsers.any((u) => u.toLowerCase().trim() == owner.toLowerCase())) {
+              displayUsers.add(owner);
+            }
+          }
 
           if ((_txStore.loading && txs.isEmpty) ||
               (!_banksStore.loaded && banks.isEmpty)) {
@@ -78,9 +112,9 @@ class _BankBalancesPageState extends State<BankBalancesPage> {
 
           final rows = <_BalanceRow>[];
 
-          for (final userName in widget.displayUsers) {
+          for (final userName in displayUsers) {
             final normalized = userName.toLowerCase().trim();
-            final uid = widget.uidByNormalizedName[normalized] ?? '';
+            final uid = uidByName[normalized] ?? '';
             if (uid.isEmpty) continue;
 
             bool ownerMatches(ExpenseEntry e) {

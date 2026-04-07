@@ -115,7 +115,9 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
     _usersDirectory = sl<UsersDirectoryDataSource>();
     _transactionsStore = sl<TransactionsStore>();
     _banksStore.startWatching();
-    _transactionsStore.load();
+    if (!_transactionsStore.watching) {
+      _transactionsStore.startWatching(limit: 2000);
+    }
     _loadPaidToTargetsAndDirectory();
   }
 
@@ -305,11 +307,20 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
   }
 
   Future<void> _loadPaidToTargetsAndDirectory() async {
-    final profiles = await _usersDirectory.getAllProfilesByUid();
     final unique = <String>{};
+    final current = await _currentUserContext.resolvedName();
+    if (current.trim().isNotEmpty) unique.add(current.trim());
+
+    final profiles = await _usersDirectory.getAllProfilesByUid();
     for (final profile in profiles.values) {
       final name = profile.name.trim();
       if (name.isNotEmpty) unique.add(name);
+    }
+    for (final tx in _transactionsStore.transactions) {
+      final owner = tx.ownerName.trim();
+      if (owner.isNotEmpty) unique.add(owner);
+      final paidTo = tx.paidTo.trim();
+      if (paidTo.isNotEmpty) unique.add(paidTo);
     }
     final sortedAll = unique.toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
@@ -347,14 +358,15 @@ class _SubmitExpensePageState extends State<SubmitExpensePage> {
   }
 
   Future<void> _ensureTransactionsLoaded() async {
-    // TransactionsStore.load() is async but load() itself may no-op while loading.
-    // This small retry loop ensures we don't validate against an empty list.
+    if (!_transactionsStore.watching) {
+      _transactionsStore.startWatching(limit: 2000);
+    }
+    // Wait briefly for initial watch snapshot; avoid force-loading empty fallback.
     for (var i = 0; i < 5; i++) {
       if (_transactionsStore.transactions.isNotEmpty ||
           (!_transactionsStore.loading && i > 0)) {
         return;
       }
-      await _transactionsStore.load();
       await Future<void>.delayed(const Duration(milliseconds: 250));
     }
   }

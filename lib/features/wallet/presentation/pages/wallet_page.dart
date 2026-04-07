@@ -29,7 +29,6 @@ class _WalletPageState extends State<WalletPage> {
     _banksStore = sl<BanksStore>();
 
     _banksStore.startWatching();
-    _transactionsStore.load(force: true, limit: 2000);
 
     final auth = sl<FirebaseAuth>();
     String? lastUid;
@@ -39,7 +38,6 @@ class _WalletPageState extends State<WalletPage> {
       if (lastUid == uid) return;
       lastUid = uid;
       _banksStore.startWatching();
-      _transactionsStore.load(force: true, limit: 2000);
     });
   }
 

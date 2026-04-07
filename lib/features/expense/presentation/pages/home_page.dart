@@ -2,6 +2,7 @@ import 'package:expense_tracker/features/expense/presentation/pages/personal_exp
 import 'package:expense_tracker/features/settings/presentation/pages/settings_page.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -15,7 +16,6 @@ import '../../../analytics/presentation/pages/analytics_page.dart';
 import '../../../wallet/presentation/pages/wallet_page.dart';
 import '../../domain/entities/expense_entry.dart';
 import 'add_amount_page.dart';
-import 'amount_added_by_user_page.dart';
 import 'bank_balances_page.dart';
 import '../store/transactions_store.dart';
 
@@ -27,6 +27,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  static const _logTag = '[HomePage]';
   late final TransactionsStore _transactionsStore;
   late final CurrentUserContext _currentUserContext;
   late final UsersDirectoryDataSource _usersDirectory;
@@ -56,7 +57,10 @@ class _HomePageState extends State<HomePage> {
     _currentUserUid = _currentUserContext.uid;
     // Home cards/sections need a wider snapshot so other users' expenses appear.
     // Use a real-time listener so multi-device updates show instantly.
-    _transactionsStore.startWatching(limit: 2000);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _transactionsStore.startWatching(limit: 2000);
+    });
     _loadIdentityAndColors();
     _listenToUserColorChanges();
 
@@ -93,6 +97,7 @@ class _HomePageState extends State<HomePage> {
         .collection('users')
         .snapshots()
         .listen((snapshot) {
+          debugPrint('$_logTag users snapshot=${snapshot.docs.length}');
           final map = <String, int>{};
           final names = <String>[];
           final uidByName = <String, String>{};
@@ -101,14 +106,19 @@ class _HomePageState extends State<HomePage> {
             final name = (data['name'] as String?)?.trim();
             final signatureColorValue = (data['signatureColorValue'] as num?)
                 ?.toInt();
-            if (name == null || name.isEmpty || signatureColorValue == null) {
+            if (name == null || name.isEmpty) {
               continue;
             }
             final normalizedName = name.toLowerCase().trim();
-            map[normalizedName] = signatureColorValue;
+            if (signatureColorValue != null) {
+              map[normalizedName] = signatureColorValue;
+            }
             uidByName[normalizedName] = doc.id;
             names.add(name);
           }
+          debugPrint(
+            '$_logTag users parsed names=${names.length} uidMap=${uidByName.length} names=$names',
+          );
           _userColorByNameNotifier.value = map;
           _userNamesNotifier.value = names;
           _uidByNormalizedNameNotifier.value = uidByName;
@@ -146,6 +156,9 @@ class _HomePageState extends State<HomePage> {
             ? dateFmt.format(rangeStart)
             : '${dateFmt.format(rangeStart)} - ${dateFmt.format(rangeEnd)}';
         final allEntries = _transactionsStore.transactions;
+        debugPrint(
+          '$_logTag rebuild entries=${allEntries.length} users=${allUserNames.length} uidMap=${uidByNormalizedName.length}',
+        );
 
         bool isWithinSelectedRange(ExpenseEntry entry) {
           final day = DateTime(entry.date.year, entry.date.month, entry.date.day);
@@ -207,6 +220,9 @@ class _HomePageState extends State<HomePage> {
             entry.paidTo.trim().isEmpty ? entry.ownerName : entry.paidTo,
           );
         }
+        for (final normalized in uidByNormalizedName.keys) {
+          addCanonical(normalized);
+        }
 
         // Build a set of known aliases for current user from transaction data.
         // This prevents duplicate cards when same user has name variants.
@@ -224,37 +240,49 @@ class _HomePageState extends State<HomePage> {
 
         // Show one "My Personal Expenses" card for current user,
         // plus other users' cards (excluding current user name).
-        final authOtherUsers =
-            allUserNames
-                .where((name) {
-                  final normalized = name.toLowerCase().trim();
-                  final uid = uidByNormalizedName[normalized];
-                  if (uid == null || uid.isEmpty) return false;
-                  return uid != _currentUserUid;
-                })
-                .toList(growable: false)
-              ..sort(
-                (a, b) =>
-                    a.toLowerCase().trim().compareTo(b.toLowerCase().trim()),
-              );
+        // Build "other users" from two sources:
+        // 1) Auth directory users (preferred when available).
+        // 2) Transaction assigned names (`paidTo`) as fallback when users docs are missing.
+        final otherUsers = <String>{};
+
+        for (final entry in canonicalByNormalized.entries) {
+          final normalized = entry.key;
+          final uid = uidByNormalizedName[normalized];
+          if (uid == null || uid.isEmpty) continue;
+          if (uid == _currentUserUid) continue;
+          if (currentUserAliases.contains(normalized)) continue;
+          otherUsers.add(entry.value);
+        }
+
+        final paidToFromEntries = entriesForCards
+            .where((t) => !t.isCredit && t.kind == ExpenseEntryKind.expense)
+            .map((t) => t.paidTo.trim().toLowerCase())
+            .where((name) => name.isNotEmpty)
+            .toSet();
+        for (final normalized in paidToFromEntries) {
+          if (normalized.isEmpty) continue;
+          if (currentUserAliases.contains(normalized)) continue;
+          final candidate = canonicalByNormalized[normalized] ?? normalized;
+          otherUsers.add(candidate);
+        }
+
+        final authOtherUsers = otherUsers.toList(growable: false)
+          ..sort(
+            (a, b) => a.toLowerCase().trim().compareTo(b.toLowerCase().trim()),
+          );
+        debugPrint(
+          '$_logTag authOtherUsers=${authOtherUsers.length} list=$authOtherUsers',
+        );
 
         final displayUsers = <String>[currentUserName, ...authOtherUsers];
+        debugPrint(
+          '$_logTag displayUsers=${displayUsers.length} current="$currentUserName" list=$displayUsers',
+        );
 
-        // "Assign/Split To" options must come ONLY from authenticated users
-        // (Firestore `users` docs), not historical names found in transactions.
-        final paidToTargets =
-            allUserNames
-                .where((name) {
-                  final normalized = name.toLowerCase().trim();
-                  final uid = uidByNormalizedName[normalized];
-                  if (uid == null || uid.isEmpty) return false;
-                  return uid != _currentUserUid;
-                })
-                .toList(growable: false)
-              ..sort(
-                (a, b) =>
-                    a.toLowerCase().trim().compareTo(b.toLowerCase().trim()),
-              );
+        // "Assign/Split To" reuses the same other-users set so it stays
+        // consistent with displayed cards even when Firestore `users` docs
+        // are incomplete.
+        final paidToTargets = authOtherUsers;
 
         // Group "expenses shown on the card" by `paidTo` (who the expense is
         // assigned to), not by `ownerUid` (who created the record).
@@ -274,6 +302,9 @@ class _HomePageState extends State<HomePage> {
                   .where((e) => e.kind == ExpenseEntryKind.expense)
                   .where((e) => e.paidTo.trim().toLowerCase() == normalized)
                   .toList(growable: false);
+              debugPrint(
+                '$_logTag card user="$name" normalized="$normalized" entries=${cardEntries.length} amount=${expenseByPaidToNormalized[normalized] ?? 0}',
+              );
               return _ExpenseCardData(
                 title: normalized == currentUserName.toLowerCase().trim()
                     ? 'Personal Expenses'
@@ -801,6 +832,7 @@ class _HomeContentState extends State<_HomeContent> {
   final ValueNotifier<Set<DateTime>> _expandedActivityDaysNotifier =
       ValueNotifier<Set<DateTime>>(<DateTime>{});
   bool _didSetDefaultExpandedDay = false;
+  bool _queuedExpansionSync = false;
 
   @override
   void dispose() {
@@ -1115,26 +1147,7 @@ class _HomeContentState extends State<_HomeContent> {
   Widget _buildRecentActivitySection(BuildContext context) {
     final grouped = _groupByDay(widget.activityEntries);
     final groupKeys = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
-
-    if (widget.activityEntries.isEmpty &&
-        _expandedActivityDaysNotifier.value.isNotEmpty) {
-      _expandedActivityDaysNotifier.value = <DateTime>{};
-    }
-
-    if (!_didSetDefaultExpandedDay && groupKeys.isNotEmpty) {
-      final today = _asDay(DateTime.now());
-      DateTime? todayKey;
-      for (final day in groupKeys) {
-        if (_isSameDay(day, today)) {
-          todayKey = _asDay(day);
-          break;
-        }
-      }
-      _expandedActivityDaysNotifier.value = todayKey == null
-          ? <DateTime>{}
-          : <DateTime>{todayKey};
-      _didSetDefaultExpandedDay = true;
-    }
+    _syncExpandedDaysAfterBuild(groupKeys);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1191,6 +1204,35 @@ class _HomeContentState extends State<_HomeContent> {
         ],
       ),
     );
+  }
+
+  void _syncExpandedDaysAfterBuild(List<DateTime> groupKeys) {
+    if (_queuedExpansionSync) return;
+
+    Set<DateTime>? next;
+    if (widget.activityEntries.isEmpty &&
+        _expandedActivityDaysNotifier.value.isNotEmpty) {
+      next = <DateTime>{};
+    } else if (!_didSetDefaultExpandedDay && groupKeys.isNotEmpty) {
+      final today = _asDay(DateTime.now());
+      DateTime? todayKey;
+      for (final day in groupKeys) {
+        if (_isSameDay(day, today)) {
+          todayKey = _asDay(day);
+          break;
+        }
+      }
+      next = todayKey == null ? <DateTime>{} : <DateTime>{todayKey};
+      _didSetDefaultExpandedDay = true;
+    }
+
+    if (next == null) return;
+    _queuedExpansionSync = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _queuedExpansionSync = false;
+      if (!mounted) return;
+      _expandedActivityDaysNotifier.value = next!;
+    });
   }
 
   Widget _buildActivityDayRow({
@@ -1352,13 +1394,9 @@ class _HomeContentState extends State<_HomeContent> {
         ? 'Added by'
         : '';
 
-    // Recent activity ⋮ menu (split / assign) only for expenses paid from cash, not a bank.
-    final isCashSourcedExpense =
-        entry.kind == ExpenseEntryKind.expense &&
-        AmountAddedByUserPage.sourceLabel(entry) ==
-            AmountAddedByUserPage.cashSourceLabel;
     final showExpenseOverflowMenu =
-        entry.ownerUid == widget.currentUserUid && isCashSourcedExpense;
+        entry.kind == ExpenseEntryKind.expense &&
+        entry.ownerUid == widget.currentUserUid;
 
     return InkWell(
       onTap: () => showDialog<void>(
@@ -1440,54 +1478,57 @@ class _HomeContentState extends State<_HomeContent> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Flexible(
-                        flex: 0,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ///split amount icon just to remve icon later to uncomment to get icon
-
-                            // if (showExpenseOverflowMenu)
-                            //   PopupMenuButton<String>(
-                            //     padding: EdgeInsets.zero,
-                            //     constraints: const BoxConstraints(
-                            //       minWidth: 24,
-                            //       minHeight: 24,
-                            //     ),
-                            //     icon: const Icon(Icons.more_vert, size: 18),
-                            //     onSelected: (value) async {
-                            //       if (value == 'split_assign') {
-                            //         await widget.onSplitAssign(entry);
-                            //       } else if (value == 'assign_to') {
-                            //         await _showReassignPaidToSheet(
-                            //           context,
-                            //           entry,
-                            //         );
-                            //       }
-                            //     },
-                            //     itemBuilder: (context) => const [
-                            //       PopupMenuItem<String>(
-                            //         value: 'split_assign',
-                            //         child: Text('Split & Assign'),
-                            //       ),
-                            //       PopupMenuItem<String>(
-                            //         value: 'assign_to',
-                            //         child: Text('Assign To'),
-                            //       ),
-                            //     ],
-                            //   ),
-                            if (showExpenseOverflowMenu)
-                              const SizedBox(width: 4),
-                            FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                formatter.format(entry.amount),
-                                style: AppTextStyles.title,
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              formatter.format(entry.amount),
+                              style: AppTextStyles.title,
+                            ),
+                          ),
+                          if (showExpenseOverflowMenu) ...[
+                            const SizedBox(height: 6),
+                            Material(
+                              color: accentColor.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () => _showExpenseActions(
+                                  context,
+                                  entry,
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.call_split_rounded,
+                                        size: 14,
+                                        color: accentColor,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Split',
+                                        style: AppTextStyles.caption.copyWith(
+                                          color: accentColor,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
                           ],
-                        ),
+                        ],
                       ),
                     ],
                   ),
@@ -1498,6 +1539,84 @@ class _HomeContentState extends State<_HomeContent> {
         ),
       ),
     );
+  }
+
+  void _showExpenseActions(BuildContext context, ExpenseEntry entry) {
+    showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ListTile(
+                  leading: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.10),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.call_split_rounded,
+                      color: AppColors.primary,
+                      size: 20,
+                    ),
+                  ),
+                  title: const Text('Split & Assign'),
+                  subtitle: const Text('Split amount to another user'),
+                  onTap: () {
+                    Navigator.pop(ctx, 'split_assign');
+                  },
+                ),
+                ListTile(
+                  leading: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.10),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.person_add_alt_1_rounded,
+                      color: AppColors.primary,
+                      size: 20,
+                    ),
+                  ),
+                  title: const Text('Assign To'),
+                  subtitle: const Text('Move full amount to another user'),
+                  onTap: () {
+                    Navigator.pop(ctx, 'assign_to');
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ).then((value) async {
+      if (value == null) return;
+      if (value == 'split_assign') {
+        await widget.onSplitAssign(entry);
+      } else if (value == 'assign_to') {
+        await _showReassignPaidToSheet(context, entry);
+      }
+    });
   }
 
   Future<void> _showReassignPaidToSheet(

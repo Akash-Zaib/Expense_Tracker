@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../../../../../core/firebase/firestore_user_scope.dart';
 import '../models/expense_entry_model.dart';
 
@@ -36,12 +37,14 @@ abstract class ExpenseRemoteDataSource {
 
 class ExpenseRemoteDataSourceImpl implements ExpenseRemoteDataSource {
   final FirestoreUserScope _userScope;
+  static const _logTag = '[ExpenseRemoteDataSource]';
 
   const ExpenseRemoteDataSourceImpl(this._userScope);
 
   @override
   Future<List<ExpenseEntryModel>> getTransactions({int limit = 200}) async {
     final usersSnapshot = await _userScope.firestore.collection('users').get();
+    debugPrint('$_logTag getTransactions users=${usersSnapshot.docs.length}');
     if (usersSnapshot.docs.isEmpty) return const [];
 
     final transactionSnapshots = await Future.wait(
@@ -52,8 +55,23 @@ class ExpenseRemoteDataSourceImpl implements ExpenseRemoteDataSource {
 
     final items = transactionSnapshots
         .expand((snapshot) => snapshot.docs)
-        .map((doc) => ExpenseEntryModel.fromFirestore(doc.data(), doc.id))
+        .map((doc) {
+          try {
+            return ExpenseEntryModel.fromFirestore(doc.data(), doc.id);
+          } catch (e, st) {
+            debugPrint(
+              '$_logTag parse-failed(get) path=${doc.reference.path} id=${doc.id} error=$e',
+            );
+            debugPrintStack(
+              stackTrace: st,
+              label: '$_logTag parse-failed(get) stack',
+            );
+            return null;
+          }
+        })
+        .whereType<ExpenseEntryModel>()
         .toList(growable: true);
+    debugPrint('$_logTag getTransactions parsed=${items.length}');
 
     // Sort client-side to avoid depending on createdAt index/field presence.
     items.sort((a, b) {
@@ -81,10 +99,28 @@ class ExpenseRemoteDataSourceImpl implements ExpenseRemoteDataSource {
         .collectionGroup('transactions')
         .snapshots()
         .map((snapshot) {
-          final items =
-              snapshot.docs
-                  .map((doc) => ExpenseEntryModel.fromFirestore(doc.data(), doc.id))
-                  .toList(growable: true);
+          debugPrint(
+            '$_logTag watch snapshot docs=${snapshot.docs.length} fromCache=${snapshot.metadata.isFromCache}',
+          );
+          final items = <ExpenseEntryModel>[];
+          var skipped = 0;
+          for (final doc in snapshot.docs) {
+            try {
+              items.add(ExpenseEntryModel.fromFirestore(doc.data(), doc.id));
+            } catch (e, st) {
+              skipped++;
+              debugPrint(
+                '$_logTag parse-failed(watch) path=${doc.reference.path} id=${doc.id} error=$e',
+              );
+              debugPrintStack(
+                stackTrace: st,
+                label: '$_logTag parse-failed(watch) stack',
+              );
+            }
+          }
+          debugPrint(
+            '$_logTag watch parsed=${items.length} skipped=$skipped limit=$limit',
+          );
 
           items.sort((a, b) {
             final dateCmp = b.date.compareTo(a.date);

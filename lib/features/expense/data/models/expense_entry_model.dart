@@ -41,44 +41,74 @@ class ExpenseEntryModel extends ExpenseEntry {
   }
 
   factory ExpenseEntryModel.fromFirestore(Map<String, dynamic> json, String id) {
-    final timestamp = json['date'] as Timestamp?;
-    final date = timestamp?.toDate() ?? DateTime.now();
-    final hour = (json['hour'] as num?)?.toInt() ?? 0;
-    final minute = (json['minute'] as num?)?.toInt() ?? 0;
-    final kindRaw = (json['kind'] as String?) ?? 'expense';
+    DateTime dateFromFirestore(dynamic raw) {
+      if (raw is Timestamp) return raw.toDate();
+      if (raw is DateTime) return raw;
+      if (raw is String) return DateTime.tryParse(raw) ?? DateTime.now();
+      return DateTime.now();
+    }
+
+    String readString(dynamic raw, {String fallback = ''}) {
+      final value = (raw ?? '').toString().trim();
+      return value.isEmpty ? fallback : value;
+    }
+
+    int readInt(dynamic raw, {int fallback = 0}) {
+      if (raw is int) return raw;
+      if (raw is num) return raw.toInt();
+      if (raw is String) return int.tryParse(raw.trim()) ?? fallback;
+      return fallback;
+    }
+
+    double readDouble(dynamic raw, {double fallback = 0}) {
+      if (raw is double) return raw;
+      if (raw is num) return raw.toDouble();
+      if (raw is String) return double.tryParse(raw.trim()) ?? fallback;
+      return fallback;
+    }
+
+    bool readBool(dynamic raw, {bool fallback = false}) {
+      if (raw is bool) return raw;
+      if (raw is num) return raw != 0;
+      if (raw is String) {
+        final v = raw.trim().toLowerCase();
+        if (v == 'true' || v == '1') return true;
+        if (v == 'false' || v == '0') return false;
+      }
+      return fallback;
+    }
+
+    final date = dateFromFirestore(json['date']);
+    final hour = readInt(json['hour']).clamp(0, 23);
+    final minute = readInt(json['minute']).clamp(0, 59);
+    final kindRaw = readString(json['kind'], fallback: 'expense');
     final kind = kindRaw == 'amountAdded'
         ? ExpenseEntryKind.amountAdded
         : ExpenseEntryKind.expense;
 
     return ExpenseEntryModel(
       id: id,
-      description: (json['description'] as String?)?.trim().isNotEmpty == true
-          ? (json['description'] as String).trim()
-          : 'Expense',
-      amount: (json['amount'] as num?)?.toDouble() ?? 0,
-      category: (json['category'] as String?)?.trim().isNotEmpty == true
-          ? (json['category'] as String).trim()
-          : 'Miscellaneous Expenses',
+      description: readString(json['description'], fallback: 'Expense'),
+      amount: readDouble(json['amount']),
+      category: readString(
+        json['category'],
+        fallback: 'Miscellaneous Expenses',
+      ),
       date: DateTime(date.year, date.month, date.day),
       time: TimeOfDay(hour: hour, minute: minute),
-      paidBy: (json['paidBy'] as String?)?.trim().isNotEmpty == true
-          ? (json['paidBy'] as String).trim()
-          : 'You',
-      addedBy: (json['addedBy'] as String?)?.trim().isNotEmpty == true
-          ? (json['addedBy'] as String).trim()
-          : 'You',
-      ownerUid: (json['ownerUid'] as String?) ?? '',
-      ownerName: (json['ownerName'] as String?)?.trim().isNotEmpty == true
-          ? (json['ownerName'] as String).trim()
-          : ((json['addedBy'] as String?)?.trim().isNotEmpty == true
-                ? (json['addedBy'] as String).trim()
-                : 'You'),
-      paidTo: (json['paidTo'] as String?)?.trim() ?? '',
-      bankName: (json['bankName'] as String?)?.trim().isEmpty == true
+      paidBy: readString(json['paidBy'], fallback: 'You'),
+      addedBy: readString(json['addedBy'], fallback: 'You'),
+      ownerUid: readString(json['ownerUid'], fallback: ''),
+      ownerName: readString(
+        json['ownerName'],
+        fallback: readString(json['addedBy'], fallback: 'You'),
+      ),
+      paidTo: readString(json['paidTo'], fallback: ''),
+      bankName: readString(json['bankName'], fallback: '').isEmpty
           ? null
-          : (json['bankName'] as String?),
+          : readString(json['bankName'], fallback: ''),
       kind: kind,
-      isCredit: (json['isCredit'] as bool?) ?? false,
+      isCredit: readBool(json['isCredit']),
     );
   }
 

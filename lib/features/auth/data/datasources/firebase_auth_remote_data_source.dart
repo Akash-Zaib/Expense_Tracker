@@ -85,6 +85,15 @@ class FirebaseAuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     final user = cred.user;
     if (user == null) return null;
 
+    await _usersDirectory.ensureUserProfile(
+      uid: user.uid,
+      name: (user.displayName ?? '').trim().isNotEmpty
+          ? user.displayName!.trim()
+          : 'User',
+      email: user.email ?? email,
+      fallbackSignatureColorValue: AppColors.primaryValue,
+    );
+
     return UserModel(
       id: user.uid,
       name: user.displayName ?? 'User',
@@ -104,6 +113,14 @@ class FirebaseAuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   Future<UserModel?> getCurrentUser() async {
     final user = _auth.currentUser;
     if (user == null) return null;
+    await _usersDirectory.ensureUserProfile(
+      uid: user.uid,
+      name: (user.displayName ?? '').trim().isNotEmpty
+          ? user.displayName!.trim()
+          : 'User',
+      email: user.email ?? '',
+      fallbackSignatureColorValue: AppColors.primaryValue,
+    );
     return UserModel(
       id: user.uid,
       name: user.displayName ?? 'User',
