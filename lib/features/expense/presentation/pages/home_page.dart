@@ -2,7 +2,6 @@ import 'package:expense_tracker/features/expense/presentation/pages/personal_exp
 import 'package:expense_tracker/features/settings/presentation/pages/settings_page.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/constants/app_colors.dart';
@@ -19,6 +18,26 @@ import 'add_amount_page.dart';
 import 'bank_balances_page.dart';
 import '../store/transactions_store.dart';
 
+/// Split / assign is only for expenses the **current user added** (stored under
+/// their UID). Rows created by split/assign on another user's subcollection
+/// keep [ExpenseEntry.addedBy] as the original creator — those must not show
+/// actions for the assignee session.
+bool shouldShowExpenseSplitActions(
+  ExpenseEntry entry,
+  String currentUserName,
+  String currentUserUid,
+) {
+  if (entry.kind != ExpenseEntryKind.expense) return false;
+  if (entry.ownerUid != currentUserUid) return false;
+  final added = entry.addedBy.trim().toLowerCase();
+  final mine = currentUserName.trim().toLowerCase();
+  if (added == mine) return true;
+  if (added == 'you' || added.isEmpty) {
+    return true;
+  }
+  return false;
+}
+
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -27,7 +46,6 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  static const _logTag = '[HomePage]';
   late final TransactionsStore _transactionsStore;
   late final CurrentUserContext _currentUserContext;
   late final UsersDirectoryDataSource _usersDirectory;
@@ -100,7 +118,6 @@ class _HomePageState extends State<HomePage> {
         .collection('users')
         .snapshots()
         .listen((snapshot) {
-          debugPrint('$_logTag users snapshot=${snapshot.docs.length}');
           final map = <String, int>{};
           final colorByUid = <String, int>{};
           final names = <String>[];
@@ -121,9 +138,6 @@ class _HomePageState extends State<HomePage> {
             uidByName[normalizedName] = doc.id;
             names.add(name);
           }
-          debugPrint(
-            '$_logTag users parsed names=${names.length} uidMap=${uidByName.length} names=$names',
-          );
           _userColorByNameNotifier.value = map;
           _userColorByUidNotifier.value = colorByUid;
           _userNamesNotifier.value = names;
@@ -164,9 +178,6 @@ class _HomePageState extends State<HomePage> {
             ? dateFmt.format(rangeStart)
             : '${dateFmt.format(rangeStart)} - ${dateFmt.format(rangeEnd)}';
         final allEntries = _transactionsStore.transactions;
-        debugPrint(
-          '$_logTag rebuild entries=${allEntries.length} users=${allUserNames.length} uidMap=${uidByNormalizedName.length}',
-        );
 
         bool isWithinSelectedRange(ExpenseEntry entry) {
           final day = DateTime(entry.date.year, entry.date.month, entry.date.day);
@@ -245,7 +256,6 @@ class _HomePageState extends State<HomePage> {
           final addedByAlias = e.addedBy.trim().toLowerCase();
           if (addedByAlias.isNotEmpty) currentUserAliases.add(addedByAlias);
         }
-
         // Show one "My Personal Expenses" card for current user,
         // plus other users' cards (excluding current user name).
         // Build "other users" from two sources:
@@ -278,14 +288,8 @@ class _HomePageState extends State<HomePage> {
           ..sort(
             (a, b) => a.toLowerCase().trim().compareTo(b.toLowerCase().trim()),
           );
-        debugPrint(
-          '$_logTag authOtherUsers=${authOtherUsers.length} list=$authOtherUsers',
-        );
 
         final displayUsers = <String>[currentUserName, ...authOtherUsers];
-        debugPrint(
-          '$_logTag displayUsers=${displayUsers.length} current="$currentUserName" list=$displayUsers',
-        );
 
         // "Assign/Split To" reuses the same other-users set so it stays
         // consistent with displayed cards even when Firestore `users` docs
@@ -310,9 +314,6 @@ class _HomePageState extends State<HomePage> {
                   .where((e) => e.kind == ExpenseEntryKind.expense)
                   .where((e) => e.paidTo.trim().toLowerCase() == normalized)
                   .toList(growable: false);
-              debugPrint(
-                '$_logTag card user="$name" normalized="$normalized" entries=${cardEntries.length} amount=${expenseByPaidToNormalized[normalized] ?? 0}',
-              );
               return _ExpenseCardData(
                 title: normalized == currentUserName.toLowerCase().trim()
                     ? 'Personal Expenses'
@@ -1384,14 +1385,19 @@ class _HomeContentState extends State<_HomeContent> {
               ? 'Paid by $actorName assigned to $paidTo'
               : 'Paid by $actorName');
     final timeLabel = entry.time.format(context);
-    final normalizedName = actorName.toLowerCase().trim();
-    final actorUid =
-        entry.ownerUid.trim().isNotEmpty
-        ? entry.ownerUid.trim()
-        : widget.uidByNormalizedName[normalizedName];
-    final colorValue =
-        (actorUid != null ? widget.userColorByUid[actorUid] : null) ??
-        widget.userColorByName[normalizedName];
+    // Activity accent color follows the **actor** (who paid / added), not the
+    // Firestore subcollection owner — split/assign copies use assignee UID but
+    // paidBy/addedBy still identify the initiator.
+    final actorUidFromDirectory = widget.uidByNormalizedName[normalizedActor];
+    var colorValue = actorUidFromDirectory != null
+        ? widget.userColorByUid[actorUidFromDirectory]
+        : null;
+    colorValue ??= widget.userColorByName[normalizedActor];
+    if (colorValue == null &&
+        entry.ownerUid.trim().isNotEmpty &&
+        entry.ownerName.trim().toLowerCase() == normalizedActor) {
+      colorValue = widget.userColorByUid[entry.ownerUid.trim()];
+    }
     final baseColor = colorValue == null ? null : Color(colorValue);
     final bgColor = baseColor == null
         ? (entry.isCredit ? AppColors.greenLight : AppColors.redLight)
@@ -1402,9 +1408,11 @@ class _HomeContentState extends State<_HomeContent> {
         ? 'Added by'
         : '';
 
-    final showExpenseOverflowMenu =
-        entry.kind == ExpenseEntryKind.expense &&
-        entry.ownerUid == widget.currentUserUid;
+    final showExpenseOverflowMenu = shouldShowExpenseSplitActions(
+      entry,
+      widget.currentUserName,
+      widget.currentUserUid,
+    );
 
     return InkWell(
       onTap: () => showDialog<void>(
