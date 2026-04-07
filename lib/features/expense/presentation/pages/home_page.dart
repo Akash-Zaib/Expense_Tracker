@@ -251,10 +251,6 @@ class _HomePageState extends State<HomePage> {
         )) {
           final ownerAlias = e.ownerName.trim().toLowerCase();
           if (ownerAlias.isNotEmpty) currentUserAliases.add(ownerAlias);
-          final paidByAlias = e.paidBy.trim().toLowerCase();
-          if (paidByAlias.isNotEmpty) currentUserAliases.add(paidByAlias);
-          final addedByAlias = e.addedBy.trim().toLowerCase();
-          if (addedByAlias.isNotEmpty) currentUserAliases.add(addedByAlias);
         }
         // Show one "My Personal Expenses" card for current user,
         // plus other users' cards (excluding current user name).
