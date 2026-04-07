@@ -35,6 +35,7 @@ class _HomePageState extends State<HomePage> {
   late final ValueNotifier<DateTimeRange> _selectedDateRangeNotifier;
   late final ValueNotifier<String> _currentUserNameNotifier;
   late final ValueNotifier<Map<String, int>> _userColorByNameNotifier;
+  late final ValueNotifier<Map<String, int>> _userColorByUidNotifier;
   late final ValueNotifier<List<String>> _userNamesNotifier;
   late final ValueNotifier<Map<String, String>> _uidByNormalizedNameNotifier;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _usersSubscription;
@@ -52,6 +53,7 @@ class _HomePageState extends State<HomePage> {
     _currentNavIndexNotifier = ValueNotifier<int>(0);
     _currentUserNameNotifier = ValueNotifier<String>('User');
     _userColorByNameNotifier = ValueNotifier<Map<String, int>>(const {});
+    _userColorByUidNotifier = ValueNotifier<Map<String, int>>(const {});
     _userNamesNotifier = ValueNotifier<List<String>>(const []);
     _uidByNormalizedNameNotifier = ValueNotifier<Map<String, String>>(const {});
     _currentUserUid = _currentUserContext.uid;
@@ -86,6 +88,7 @@ class _HomePageState extends State<HomePage> {
     _selectedDateRangeNotifier.dispose();
     _currentUserNameNotifier.dispose();
     _userColorByNameNotifier.dispose();
+    _userColorByUidNotifier.dispose();
     _userNamesNotifier.dispose();
     _uidByNormalizedNameNotifier.dispose();
     super.dispose();
@@ -99,6 +102,7 @@ class _HomePageState extends State<HomePage> {
         .listen((snapshot) {
           debugPrint('$_logTag users snapshot=${snapshot.docs.length}');
           final map = <String, int>{};
+          final colorByUid = <String, int>{};
           final names = <String>[];
           final uidByName = <String, String>{};
           for (final doc in snapshot.docs) {
@@ -112,6 +116,7 @@ class _HomePageState extends State<HomePage> {
             final normalizedName = name.toLowerCase().trim();
             if (signatureColorValue != null) {
               map[normalizedName] = signatureColorValue;
+              colorByUid[doc.id] = signatureColorValue;
             }
             uidByName[normalizedName] = doc.id;
             names.add(name);
@@ -120,6 +125,7 @@ class _HomePageState extends State<HomePage> {
             '$_logTag users parsed names=${names.length} uidMap=${uidByName.length} names=$names',
           );
           _userColorByNameNotifier.value = map;
+          _userColorByUidNotifier.value = colorByUid;
           _userNamesNotifier.value = names;
           _uidByNormalizedNameNotifier.value = uidByName;
         });
@@ -132,6 +138,7 @@ class _HomePageState extends State<HomePage> {
         _selectedDateRangeNotifier,
         _currentUserNameNotifier,
         _userColorByNameNotifier,
+        _userColorByUidNotifier,
         _userNamesNotifier,
         _uidByNormalizedNameNotifier,
       ]),
@@ -149,6 +156,7 @@ class _HomePageState extends State<HomePage> {
         );
         final currentUserName = _currentUserNameNotifier.value;
         final userColorByName = _userColorByNameNotifier.value;
+        final userColorByUid = _userColorByUidNotifier.value;
         final allUserNames = _userNamesNotifier.value;
         final uidByNormalizedName = _uidByNormalizedNameNotifier.value;
         final dateFmt = DateFormat('d MMM yyyy');
@@ -338,6 +346,8 @@ class _HomePageState extends State<HomePage> {
           paidToTargets: paidToTargets,
           currentUserUid: _currentUserUid,
           userColorByName: userColorByName,
+          userColorByUid: userColorByUid,
+          uidByNormalizedName: uidByNormalizedName,
           entries: entriesForCards,
           activityEntries: activityEntries,
           onOpenAmountAddedBreakdown: () {
@@ -795,6 +805,8 @@ class _HomeContent extends StatefulWidget {
   final List<String> paidToTargets;
   final Future<void> Function(ExpenseEntry entry) onSplitAssign;
   final Map<String, int> userColorByName;
+  final Map<String, int> userColorByUid;
+  final Map<String, String> uidByNormalizedName;
   final List<ExpenseEntry> entries;
 
   /// All partners — used only for Recent Activity (not date-scoped).
@@ -814,6 +826,8 @@ class _HomeContent extends StatefulWidget {
     required this.expenseCards,
     required this.paidToTargets,
     required this.userColorByName,
+    required this.userColorByUid,
+    required this.uidByNormalizedName,
     required this.entries,
     required this.activityEntries,
     required this.onOpenAmountAddedBreakdown,
@@ -894,23 +908,8 @@ class _HomeContentState extends State<_HomeContent> {
             ],
           ),
         ),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.border),
-          ),
-          child: IconButton(
-            icon: const Icon(
-              Icons.notifications_outlined,
-              color: AppColors.primary,
-            ),
-            onPressed: () =>
-                Navigator.pushNamed(context, AppRoutes.notifications),
-            constraints: const BoxConstraints(),
-            padding: const EdgeInsets.all(8),
-          ),
-        ),
+        // Notification icon hidden for now.
+        const SizedBox.shrink(),
       ],
     );
   }
@@ -1069,7 +1068,10 @@ class _HomeContentState extends State<_HomeContent> {
 
   Color? _colorForUser(String name) {
     final key = name.toLowerCase().trim();
-    final value = widget.userColorByName[key];
+    final uid = widget.uidByNormalizedName[key];
+    final value =
+        (uid != null ? widget.userColorByUid[uid] : null) ??
+        widget.userColorByName[key];
     return value == null ? null : Color(value);
   }
 
@@ -1383,7 +1385,13 @@ class _HomeContentState extends State<_HomeContent> {
               : 'Paid by $actorName');
     final timeLabel = entry.time.format(context);
     final normalizedName = actorName.toLowerCase().trim();
-    final colorValue = widget.userColorByName[normalizedName];
+    final actorUid =
+        entry.ownerUid.trim().isNotEmpty
+        ? entry.ownerUid.trim()
+        : widget.uidByNormalizedName[normalizedName];
+    final colorValue =
+        (actorUid != null ? widget.userColorByUid[actorUid] : null) ??
+        widget.userColorByName[normalizedName];
     final baseColor = colorValue == null ? null : Color(colorValue);
     final bgColor = baseColor == null
         ? (entry.isCredit ? AppColors.greenLight : AppColors.redLight)
@@ -1668,37 +1676,86 @@ class _HomeContentState extends State<_HomeContent> {
                 ),
                 const SizedBox(height: 10),
                 Flexible(
-                  child: ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: widget.paidToTargets.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final name = widget.paidToTargets[index];
-                      final selected = name == current;
-                      return Material(
-                        color: selected
-                            ? AppColors.primary.withValues(alpha: 0.08)
-                            : AppColors.background,
-                        borderRadius: BorderRadius.circular(12),
-                        child: ListTile(
-                          leading: Icon(
-                            Icons.person_outline,
-                            color: selected
-                                ? AppColors.primary
-                                : AppColors.textSecondary,
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColors.border.withValues(alpha: 0.8),
+                      ),
+                    ),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: widget.paidToTargets.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final name = widget.paidToTargets[index];
+                        final selected = name == current;
+                        return Material(
+                          color: selected
+                              ? AppColors.primary.withValues(alpha: 0.10)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => Navigator.pop(ctx, name),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 34,
+                                    height: 34,
+                                    decoration: BoxDecoration(
+                                      color: selected
+                                          ? AppColors.primary.withValues(
+                                              alpha: 0.16,
+                                            )
+                                          : AppColors.background,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.person_outline_rounded,
+                                      color: selected
+                                          ? AppColors.primary
+                                          : AppColors.textSecondary,
+                                      size: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      name,
+                                      style: AppTextStyles.bodyMedium.copyWith(
+                                        fontWeight: selected
+                                            ? FontWeight.w700
+                                            : FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  Icon(
+                                    selected
+                                        ? Icons.radio_button_checked
+                                        : Icons.radio_button_off,
+                                    color: selected
+                                        ? AppColors.primary
+                                        : AppColors.textSecondary.withValues(
+                                            alpha: 0.7,
+                                          ),
+                                    size: 20,
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                          title: Text(name, style: AppTextStyles.bodyMedium),
-                          trailing: selected
-                              ? const Icon(
-                                  Icons.check_circle,
-                                  color: AppColors.primary,
-                                )
-                              : null,
-                          onTap: () => Navigator.pop(ctx, name),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
                 ),
               ],
@@ -1792,44 +1849,132 @@ class _SplitAssignSheetState extends State<_SplitAssignSheet> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _selectedName,
-              decoration: const InputDecoration(
-                labelText: 'Assign to',
-                border: OutlineInputBorder(),
-              ),
-              items: widget.candidates
-                  .map(
-                    (name) => DropdownMenuItem<String>(
-                      value: name,
-                      child: Text(name),
-                    ),
-                  )
-                  .toList(growable: false),
-              onChanged: (v) =>
-                  setState(() => _selectedName = v ?? _selectedName),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              decoration: InputDecoration(
-                labelText: 'Amount to assign',
-                helperText: 'Must be > 0 and < ${maxAmount.toStringAsFixed(0)}',
-                border: const OutlineInputBorder(),
-              ),
-            ),
             const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.border.withValues(alpha: 0.8)),
+              ),
+              child: Column(
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Assign to',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 180),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: widget.candidates.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final name = widget.candidates[index];
+                        final selected = name == _selectedName;
+                        return Material(
+                          color: selected
+                              ? AppColors.primary.withValues(alpha: 0.10)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => setState(() => _selectedName = name),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 34,
+                                    height: 34,
+                                    decoration: BoxDecoration(
+                                      color: selected
+                                          ? AppColors.primary.withValues(
+                                              alpha: 0.16,
+                                            )
+                                          : AppColors.background,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.person_outline_rounded,
+                                      color: selected
+                                          ? AppColors.primary
+                                          : AppColors.textSecondary,
+                                      size: 18,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      name,
+                                      style: AppTextStyles.bodyMedium.copyWith(
+                                        fontWeight: selected
+                                            ? FontWeight.w700
+                                            : FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                  Icon(
+                                    selected
+                                        ? Icons.radio_button_checked
+                                        : Icons.radio_button_off,
+                                    color: selected
+                                        ? AppColors.primary
+                                        : AppColors.textSecondary.withValues(
+                                            alpha: 0.7,
+                                          ),
+                                    size: 20,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _amountController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: InputDecoration(
+                      labelText: 'Amount to assign',
+                      helperText:
+                          'Must be > 0 and < ${maxAmount.toStringAsFixed(0)}',
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

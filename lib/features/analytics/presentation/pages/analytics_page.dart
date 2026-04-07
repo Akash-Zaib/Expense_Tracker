@@ -5,7 +5,6 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/di/injection_container.dart';
 import '../../../../core/firebase/current_user_context.dart';
-import '../../../../core/routes/app_routes.dart';
 import '../../../expense/domain/entities/expense_entry.dart';
 import '../../../expense/presentation/store/transactions_store.dart';
 
@@ -123,23 +122,8 @@ class _AnalyticsPageState extends State<AnalyticsPage> {
             ],
           ),
         ),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.border),
-          ),
-          child: IconButton(
-            icon: const Icon(
-              Icons.notifications_outlined,
-              color: AppColors.primary,
-            ),
-            onPressed: () =>
-                Navigator.pushNamed(context, AppRoutes.notifications),
-            constraints: const BoxConstraints(),
-            padding: const EdgeInsets.all(8),
-          ),
-        ),
+        // Notification icon hidden for now.
+        const SizedBox.shrink(),
       ],
     );
   }

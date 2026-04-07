@@ -91,14 +91,18 @@ class _BankBalancesPageState extends State<BankBalancesPage> {
           for (final tx in txs) {
             final owner = tx.ownerName.trim();
             if (owner.isNotEmpty &&
-                !displayUsers.any((u) => u.toLowerCase().trim() == owner.toLowerCase())) {
+                !displayUsers.any(
+                  (u) => u.toLowerCase().trim() == owner.toLowerCase(),
+                )) {
               displayUsers.add(owner);
             }
           }
           for (final b in banks) {
             final owner = b.ownerName.trim();
             if (owner.isNotEmpty &&
-                !displayUsers.any((u) => u.toLowerCase().trim() == owner.toLowerCase())) {
+                !displayUsers.any(
+                  (u) => u.toLowerCase().trim() == owner.toLowerCase(),
+                )) {
               displayUsers.add(owner);
             }
           }
@@ -541,11 +545,7 @@ class _BankBalancesPageState extends State<BankBalancesPage> {
     );
   }
 
-  Widget _detailRow(
-    String label,
-    String value, {
-    Color? valueColor,
-  }) {
+  Widget _detailRow(String label, String value, {Color? valueColor}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(

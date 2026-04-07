@@ -64,27 +64,32 @@ class TransactionsStore extends ChangeNotifier {
 
     _watchSub?.cancel();
     _watchRetryTimer?.cancel();
-    _watchSub = _repository.watchTransactions(limit: _watchLimit).listen(
-      (items) {
-        debugPrint(
-          '$_logTag watch success items=${items.length} limit=$_watchLimit',
+    _watchSub = _repository
+        .watchTransactions(limit: _watchLimit)
+        .listen(
+          (items) {
+            debugPrint(
+              '$_logTag watch success items=${items.length} limit=$_watchLimit',
+            );
+            _stopFallbackPolling();
+            _transactions
+              ..clear()
+              ..addAll(items);
+            _error = null;
+            notifyListeners();
+          },
+          onError: (e, st) {
+            debugPrint('$_logTag watch error=$e');
+            debugPrintStack(
+              stackTrace: st,
+              label: '$_logTag watch error stack',
+            );
+            _error = e.toString();
+            _startFallbackPolling();
+            _scheduleWatchRetry();
+            notifyListeners();
+          },
         );
-        _stopFallbackPolling();
-        _transactions
-          ..clear()
-          ..addAll(items);
-        _error = null;
-        notifyListeners();
-      },
-      onError: (e, st) {
-        debugPrint('$_logTag watch error=$e');
-        debugPrintStack(stackTrace: st, label: '$_logTag watch error stack');
-        _error = e.toString();
-        _startFallbackPolling();
-        _scheduleWatchRetry();
-        notifyListeners();
-      },
-    );
   }
 
   Future<void> stopWatching() async {

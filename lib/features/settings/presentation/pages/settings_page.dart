@@ -117,23 +117,8 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.border),
-          ),
-          child: IconButton(
-            icon: const Icon(
-              Icons.notifications_outlined,
-              color: AppColors.primary,
-            ),
-            onPressed: () =>
-                Navigator.pushNamed(context, AppRoutes.notifications),
-            constraints: const BoxConstraints(),
-            padding: const EdgeInsets.all(8),
-          ),
-        ),
+        // Notification icon hidden for now.
+        const SizedBox.shrink(),
       ],
     );
   }
@@ -215,6 +200,24 @@ class _SettingsPageState extends State<SettingsPage> {
                           unavailableColorValues: unavailableColors,
                         );
                         if (result == null) return;
+                        // Re-check right before save so color locking stays
+                        // accurate if another user changed color meanwhile.
+                        final latestUnavailableColors =
+                            await _loadUnavailableColors();
+                        if (!context.mounted) return;
+                        final pickedByOther = latestUnavailableColors.contains(
+                          result.signatureColorValue,
+                        );
+                        if (pickedByOther) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'This color is locked by another user. Choose a different color.',
+                              ),
+                            ),
+                          );
+                          return;
+                        }
                         final ok = await _store.updateProfile(
                           name: result.name,
                           signatureColorValue: result.signatureColorValue,
